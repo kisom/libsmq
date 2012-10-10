@@ -33,9 +33,9 @@ extern const long	LOCK_WAIT_US;
 
 
 /*
- * create and initialise a new message queue. properly allocates all resources,
- * and returns the allocated and initialised msgqueue. if there was a failure to
- * allocate memory, returns NULL.
+ * create and initialise a new message queue. properly allocates all
+ * resources, and returns the allocated and initialised msgqueue. if there
+ * was a failure to allocate memory, returns NULL.
  */
 s_msgqueuep
 msgqueue_create()
@@ -83,7 +83,7 @@ msgqueue_push(s_msgqueuep msgq, const char *msgdata)
 		msg = NULL;
 	} else {
 		if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
-			strlcpy(msg->msg, msgdata, cplen);
+			memcpy(msg->msg, msgdata, cplen);
 			msg->seq = ++msgq->lastseq;
                         msg->msglen = cplen-1;
 			TAILQ_INSERT_TAIL(msgq->queue, msg, msglst);
