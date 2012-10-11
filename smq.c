@@ -26,6 +26,11 @@
 
 #include "smq.h"
 
+/* fuck you linux */
+#ifdef _LINUX_SOURCE
+#define pthread_mutex_timedlock(mtx, ts)  pthread_mutex_trylock((mtx))
+#endif
+
 
 extern const size_t	MSG_MAX_SZ;
 extern const time_t	LOCK_WAIT_S;
@@ -156,9 +161,9 @@ int
 msgqueue_destroy(s_msgqueuep msgq)
 {
 	struct s_msg	*msg;
-	int		ok = 0;
+	int		error = -1;
 
-	if (0 == acquire_lock(msgq)) {
+	if (0 == (error = acquire_lock(msgq))) {
 		while ((msg = TAILQ_FIRST(msgq->queue))) {
 			free(msg->msg);
 			msg->msg = NULL;
@@ -168,16 +173,16 @@ msgqueue_destroy(s_msgqueuep msgq)
 		}
 		free(msgq->queue);
 		msgq->queue = NULL;
-		ok = !(pthread_mutex_unlock(&msgq->mtx));
+		error = (pthread_mutex_unlock(&msgq->mtx));
 	}
 
-	if (ok) {
+	if (0 == error) {
 		pthread_mutex_destroy(&msgq->mtx);
 		free(msgq);
 		msgq = NULL;
 	}
 	
-	return !(ok == 1);
+	return error;
 }
 
 
