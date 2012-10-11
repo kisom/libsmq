@@ -33,7 +33,7 @@ install: $(LIB).a man
 	install -m 0444 $(MANPAGE) $(MANDIR)/man1/$(MANPAGE)
 
 uninstall:
-	-rm -f $(PREFIX)/lib/$()
+	-rm -f $(PREFIX)/lib/$(LIB)
 	-rm -f $(MANDIR)/man3/$(MANPAGE)
 
 test: $(TESTBINS)
