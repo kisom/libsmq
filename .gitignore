@@ -1,4 +1,4 @@
-*.a
+*.[ao]
 *.tgz
 .*.sw?
 smq_test
