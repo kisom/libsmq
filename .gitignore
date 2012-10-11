@@ -1,0 +1,5 @@
+*.a
+*.tgz
+.*.sw?
+smq_test
+libsmq.a
