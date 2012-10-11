@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2012 Kyle Isom <kyle@tyrfingr.is>
- * 
+ *
  * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above 
+ * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL 
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED 
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE 
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
  * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
  * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR 
- * PERFORMANCE OF THIS SOFTWARE. 
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  * ---------------------------------------------------------------------
  */
 
@@ -21,14 +21,14 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <stdlib.h> 
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include <smq.h>
 
 #define BUFSZ                   32
-#define NMSG                    10240
+#define NMSG                    32
 static struct s_msgqueue       *mq;
 
 static void     *load_data(void *);
@@ -90,7 +90,7 @@ load_data(void *junk)
         while (nsent < NMSG) {
                 rdsz = fread(buf, sizeof(char), BUFSZ, dr);
                 if (rdsz < BUFSZ)
-                        printf("<load data> only read %lu bytes\n", 
+                        printf("<load data> only read %lu bytes\n",
                             (long unsigned)rdsz);
                 for (i = 0; i < BUFSZ; i++) {
                         if (buf[i] == '\0')
@@ -133,9 +133,9 @@ read_data(void *junk)
                         ms_sleep(10);
                         continue;
                 }
-                printf("[+] (%4lu) received %lu bytes (msg seq: %lu)\n", 
+                printf("[+] (%4lu) received %lu bytes (msg seq: %lu)\n",
                     (long unsigned)cnt,
-                    (long unsigned)strlen(msg->msg),
+                    (long unsigned)strlen((char *)msg->msg),
                     (long unsigned)msg->seq);
 
                 if (last != msg->seq-1) {
@@ -162,7 +162,7 @@ sthrd_test()
 {
         struct s_msgqueue       *msq;
         struct s_message        *msg = NULL;
-        
+
         msq = msgqueue_create();
         if (0 != msgqueue_push(msq, "foo"))
                 printf("[!] push 1 failed\n");
@@ -171,7 +171,7 @@ sthrd_test()
         if (NULL == (msg = msgqueue_pop(msq)))
                 printf("[!] pop failed\n");
         else {
-                printf("[+] first message: %s (seq=%lu)\n", msg->msg, 
+                printf("[+] first message: %s (seq=%lu)\n", msg->msg,
                     (long unsigned)msg->seq);
         }
 
