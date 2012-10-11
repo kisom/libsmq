@@ -12,7 +12,8 @@ OPSYS=$(uname -s)
 
 echo "Configuring for ${OPSYS}..."
 if [ "x${OPSYS}" = "xLinux" ]; then
-    OS_CFLAGS="-D_BSD_SOURCE -D_POSIX_SOURCE -D_XOPEN_SOURCE __USE_XOPEN2K"
+    OS_CFLAGS="-D_BSD_SOURCE -D_POSIX_SOURCE -D_XOPEN_SOURCE "
+    OS_CFLAGS="${OS_CFLAGS} -D__USE_XOPEN2K"
 else
     OS_CFLAGS=""
 fi
