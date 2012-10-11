@@ -26,8 +26,8 @@
 
 #include "smq.h"
 
-/* fuck you linux */
-#ifdef _LINUX_SOURCE
+/* fuck you linux and os x*/
+#ifdef _NO_TIMEDLOCK
 #define pthread_mutex_timedlock(mtx, ts)  pthread_mutex_trylock((mtx))
 #endif
 
