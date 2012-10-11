@@ -74,23 +74,28 @@ msgqueue_push(s_msgqueuep msgq, const char *msgdata)
 	size_t		cplen;
 	int		error = -1;
 
-	if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
+        if (msgq == NULL || msgq->queue == NULL || msgdata == NULL)
+                return error;
+        else if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
 		return error;
+
 	cplen = strlen(msgdata);
 	cplen = (cplen + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : cplen + 1;
+
 	if (NULL == (msg->msg = calloc(cplen + 1, sizeof(char)))) {
-		free(msg);
-		msg = NULL;
-	} else {
-		if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
-			memcpy(msg->msg, msgdata, cplen);
-			msg->seq = ++msgq->lastseq;
-                        msg->msglen = cplen-1;
-			TAILQ_INSERT_TAIL(msgq->queue, msg, msglst);
-			msgq->nmsg++;
-			error = pthread_mutex_unlock(&msgq->mtx);
-		}
+                free(msg);
+                msg = NULL;
+                return error;
 	}
+
+        if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
+                memcpy(msg->msg, msgdata, cplen);
+                msg->seq = ++msgq->lastseq;
+                msg->msglen = cplen-1;
+                TAILQ_INSERT_TAIL(msgq->queue, msg, msglst);
+                msgq->nmsg++;
+                error = pthread_mutex_unlock(&msgq->mtx);
+        }
 	return error;
 }
 
