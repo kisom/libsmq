@@ -1,9 +1,59 @@
-.Dd $Mdocdate$
+.Dd October 9, 2012
 .Dt LIBSMQ 3
 .Os
 .Sh NAME
 .Nm libsmq
 .Nd a simple message queue library
-.Sh
+.Sh SYNOPSIS
 .In smq.h
-Sh
+.Ft "struct s_msgqueue *"
+.Fo msgqueue_create
+.Fa void
+.Fc
+.Ft int
+.Fo msgqueue_push
+.Fa "struct msgqueue *msgq"
+.Fa "const char *msgdata"
+.Fc
+.Ft "struct s_message *"
+.Fo "msgqueue_pop"
+.Fa "struct msgqueue *msgq"
+.Fc
+.Ft int
+.Fo "msgqueue_destroy"
+.Fa "struct msgqueue *msgq"
+.Fc
+.Sh DESCRIPTION
+.Nm
+provides simple, thread-safe message queues (LIFO buffers) modeled
+after Go's channels. Messages contain an array of uint8_t values,
+a sequence number, and a variable indicating the size of the data
+array. A message struct is defined as:
+.Bd -literal
+struct s_message {
+        uint8_t			*msg;
+	size_t			msglen;
+	size_t			seq;
+};
+.Ed
+A queue stores an arbitrary number of messages in a standard
+.Xr queue 3
+TAILQ, a mutex, a message count, and the last sequence number assigned
+to a message.
+New messageq queues are created with the
+.Ic msgqueue_create
+function.
+.Sh RETURN VALUES
+.Sh EXAMPLES
+.Sh ERRORS
+.Sh STANDARDS
+.Nm
+conforms to
+.St -ansiC
+and
+.St -susv3 .
+.Sh AUTHORS
+.Nm
+was written by
+.An Kyle Isom Aq Mt kyle@tyrfingr.is .
+.Sh CAVEATS
