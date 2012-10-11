@@ -28,7 +28,7 @@
 #include <smq.h>
 
 #define BUFSZ                   32
-#define NMSG                    32
+#define NMSG                    32000
 static struct s_msgqueue       *mq;
 
 static void     *load_data(void *);

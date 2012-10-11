@@ -32,6 +32,8 @@ extern const time_t	LOCK_WAIT_S;
 extern const long	LOCK_WAIT_US;
 
 
+static int              acquire_lock(struct s_msgqueue *);
+
 /*
  * create and initialise a new message queue. properly allocates all
  * resources, and returns the allocated and initialised msgqueue. if there
@@ -88,7 +90,7 @@ msgqueue_push(s_msgqueuep msgq, const char *msgdata)
                 return error;
 	}
 
-        if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
+        if (0 == acquire_lock(msgq)) {
                 memcpy(msg->msg, msgdata, cplen);
                 msg->seq = ++msgq->lastseq;
                 msg->msglen = cplen-1;
@@ -118,7 +120,7 @@ msgqueue_pop(s_msgqueuep msgq)
                 return msg;
 	else if (NULL == (msg = calloc(1, sizeof(struct s_message))))
 		return msg;
-	else if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
+	else if (0 == acquire_lock(msgq)) {
 		msgh = TAILQ_FIRST(msgq->queue);
                 if ((msgh != NULL) &&
                     (NULL != (msg->msg = calloc((msgh->msglen) + 1, 
@@ -156,7 +158,7 @@ msgqueue_destroy(s_msgqueuep msgq)
 	struct s_msg	*msg;
 	int		ok = 0;
 
-	if (0 == pthread_mutex_timedlock(&msgq->mtx, &msgq->block)) {
+	if (0 == acquire_lock(msgq)) {
 		while ((msg = TAILQ_FIRST(msgq->queue))) {
 			free(msg->msg);
 			msg->msg = NULL;
@@ -178,3 +180,20 @@ msgqueue_destroy(s_msgqueuep msgq)
 	return !(ok == 1);
 }
 
+
+/*
+ * acquire_lock attempts to lock the message queue, returning 1 if
+ * successful, and 0 if not.
+ */
+static int
+acquire_lock(struct s_msgqueue *msgq)
+{
+        struct timespec abstm;
+        int             error = -1;
+
+        abstm.tv_sec = time(NULL) + msgq->block.tv_sec;
+        abstm.tv_nsec = msgq->block.tv_nsec;
+
+        error = pthread_mutex_timedlock(&msgq->mtx, &abstm);
+        return error;
+}
