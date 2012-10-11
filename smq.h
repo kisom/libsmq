@@ -18,8 +18,10 @@
 
 #ifndef __LIBSMQ_MSG_H
 #define __LIBSMQ_MSG_H
+#include <sys/types.h>
 #include <sys/queue.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 
