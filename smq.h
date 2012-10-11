@@ -16,8 +16,8 @@
  * ---------------------------------------------------------------------
  */
 
-#ifndef __EFFIGY_MSG_H
-#define __EFFIGY_MSG_H
+#ifndef __LIBSMQ_MSG_H
+#define __LIBSMQ_MSG_H
 #include <sys/queue.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -34,16 +34,17 @@
 static const size_t	MSG_MAX_SZ = 4096;
 static const time_t	LOCK_WAIT_S = 1;
 static const long	LOCK_WAIT_NS = 0;
+static const char       LIBSMQ_VERSION[] = VERSION;
 
 
 struct s_message {
-	char			*msg;
+        uint8_t			*msg;
 	size_t			msglen;
 	size_t			seq;
 };
 
 struct s_msg {
-	char			*msg;
+	uint8_t			*msg;
 	size_t			msglen;
 	size_t			seq;
 	TAILQ_ENTRY(s_msg)	msglst;
