@@ -22,7 +22,7 @@ $(LIB).a: $(OBJS)
 	@$(AR) -crs $@ $?
 
 clean:
-	-rm -f .*.* *.core *.o *.html tags $(TARGET) $(OBJS) *.plist
+	-rm -f .?*.* *.core *.o *.html tags $(TARGET) $(OBJS) *.plist
 	-rm -rf $(LIB)-$(VERSION)
 	-rm -f $(LIB)-$(VERSION).tgz
 
