@@ -25,7 +25,7 @@ test:V: $TESTBINS
 
 smq_test:Q:$LIB.a smq_test.o
 	echo "LD $target"
-	$CC $CFLAGS -o $target $target.o $OFILES -lpthread -L. -lsmq
+	$CC $CFLAGS -o $target $target.o -lpthread -L. -lsmq
 
 audit: 
 	rats -i -w3 *.[ch]
