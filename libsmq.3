@@ -42,10 +42,44 @@ TAILQ, a mutex, a message count, and the last sequence number assigned
 to a message.
 New messageq queues are created with the
 .Ic msgqueue_create
-function.
+function. This ensures that all resources for the queue are properly
+allocated and initialised.
+.Sy It is critical that all queues be created with msgqueue_create
+.Sy and destroyed with msgqueue_destroy!
+.No
+New messages are added with
+.Ic msgqueue_push
+can be used to add a message to the queue. Messages can be pulled from
+the the queue with
+.Ic msgqueue_pop .
+The queue is defined as
+.Bd -literal
+struct s_msgqueue {
+        ...
+	size_t		nmsg;
+	size_t		lastseq;
+	struct timespec block;
+};
+.Ed
+The
+.Ic nmsg
+member contains the number of messages currently in the queue, while
+.Ic lastseq
+contains the last sequence number issued out.
 .Sh RETURN VALUES
-.Sh EXAMPLES
+.Ic msgqueue_create
+returns an initialised message queue or NULL if one could not be
+initialised.
+.Ic msgqueue_push
+and
+.Ic msgqueue_destroy
+return 0 on success, and nonzero on error. If the value is -1, then
+errno has been set; if >0, the error is due to a pthreads error, such
+as a failure to acquire a lock.
 .Sh ERRORS
+The most typical cause for errors in the library will be a failure
+to acquire a lock; while this is technically an error, it is an
+expected error.
 .Sh STANDARDS
 .Nm
 conforms to
@@ -57,3 +91,14 @@ and
 was written by
 .An Kyle Isom Aq Mt kyle@tyrfingr.is .
 .Sh CAVEATS
+If you are on Linux, you are on your own. I have gotten this to compile,
+but I couldn't care less whether it runs. You won't have timedlocks
+because none of the Linux boxes I had access to had implemented
+timedlocks. There may be other gotchas.
+.Sh BUGS
+Please report bugs to the author. If the bug occurs on a Linux system,
+the author can be reached at
+.Aq Mt nobody@localhost ;
+otherwise the mail address listed in the
+.Sx AUTHOR
+section.
