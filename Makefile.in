@@ -30,7 +30,7 @@ install: $(LIB).a man
 	install -d $(PREFIX)/lib
 	install $(LIB).a $(PREFIX)/lib/$(LIB).a
 	install -m 0755 -d $(MANDIR)/man3
-	install -m 0444 $(MANPAGE) $(MANDIR)/man1/$(MANPAGE)
+	install -m 0444 $(MANPAGE) $(MANDIR)/man3/$(MANPAGE)
 
 uninstall:
 	-rm -f $(PREFIX)/lib/$(LIB)
