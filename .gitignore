@@ -3,3 +3,4 @@
 .*.sw?
 smq_test
 libsmq.a
+Makefile
