@@ -38,7 +38,7 @@ uninstall:
 
 test: $(TESTBINS)
 
-smq_test: $@.o $(LIB).a
+smq_test: smq_test.o $(LIB).a
 	@echo "LD $@"
 	@$(CC) $(CFLAGS) -o $@ $@.o -lpthread -L. -lsmq
 
