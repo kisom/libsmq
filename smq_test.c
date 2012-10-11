@@ -28,7 +28,7 @@
 #include <smq.h>
 
 #define BUFSZ                   32
-#define NMSG                    32000
+#define NMSG                    32
 static struct s_msgqueue       *mq;
 
 static void     *load_data(void *);
@@ -69,8 +69,19 @@ main(void)
 static void
 ms_sleep(short ms)
 {
-         if (0 != usleep(ms * 1000))
-                 printf("usleep failed\n");
+        struct timespec  timeo;
+        struct timespec  unslept;
+        int              sec = 0;
+
+        if (ms >= 1000) {
+                sec = ms / 1000;
+        }
+
+        timeo.tv_sec = sec;
+        timeo.tv_nsec = (ms % 1000) * 1000;
+        while (0 != nanosleep((const struct timespec *)&timeo, &unslept)) {
+                timeo = unslept;
+        }
 }
 
 void *

@@ -140,7 +140,9 @@ msgqueue_pop(s_msgqueuep msgq)
                         free(msgh);
                         msgh = NULL;
                 } else {
+                        free(msgh);
                         free(msg);
+                        msgh = NULL;
                         msg = NULL;
                 }
 		error = pthread_mutex_unlock(&msgq->mtx);
