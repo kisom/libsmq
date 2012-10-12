@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <err.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,18 +27,12 @@
 
 #include "smq.h"
 
-/* fuck you linux and os x*/
-#ifdef _NO_TIMEDLOCK
-#define pthread_mutex_timedlock(mtx, ts)  pthread_mutex_trylock((mtx))
-#endif
-
-
 extern const size_t	MSG_MAX_SZ;
 extern const time_t	LOCK_WAIT_S;
 extern const long	LOCK_WAIT_US;
 
 
-static int              acquire_lock(struct s_msgqueue *);
+static int              acquire_lock(pthread_mutex_t, struct timespec *, int);
 
 /*
  * create and initialise a new message queue. properly allocates all
@@ -95,7 +90,7 @@ msgqueue_push(s_msgqueuep msgq, const char *msgdata)
                 return error;
 	}
 
-        if (0 == acquire_lock(msgq)) {
+        if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
                 memcpy(msg->msg, msgdata, cplen);
                 msg->seq = ++msgq->lastseq;
                 msg->msglen = cplen-1;
@@ -125,7 +120,7 @@ msgqueue_pop(s_msgqueuep msgq)
                 return msg;
 	else if (NULL == (msg = calloc(1, sizeof(struct s_message))))
 		return msg;
-	else if (0 == acquire_lock(msgq)) {
+	else if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
 		msgh = TAILQ_FIRST(msgq->queue);
                 if ((msgh != NULL) &&
                     (NULL != (msg->msg = calloc((msgh->msglen) + 1, 
@@ -165,7 +160,7 @@ msgqueue_destroy(s_msgqueuep msgq)
 	struct s_msg	*msg;
 	int		error = -1;
 
-	if (0 == (error = acquire_lock(msgq))) {
+	if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
 		while ((msg = TAILQ_FIRST(msgq->queue))) {
 			free(msg->msg);
 			msg->msg = NULL;
@@ -193,14 +188,21 @@ msgqueue_destroy(s_msgqueuep msgq)
  * successful, and 0 if not.
  */
 static int
-acquire_lock(struct s_msgqueue *msgq)
+acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
 {
-        struct timespec abstm;
-        int             error = -1;
+        int             error;
+        struct timeval  timeo = { 0, 10000 };
 
-        abstm.tv_sec = time(NULL) + msgq->block.tv_sec;
-        abstm.tv_nsec = msgq->block.tv_nsec;
+        do {
+                timeo.tv_sec = ts->tv_sec;
+                timeo.tv_usec = ts->tv_nsec * 1000;
+                error = pthread_mutex_trylock(&mtx);
+                if (EINVAL == error)
+                        break;
+                else if (error && wait)
+                        select(0, NULL, NULL, NULL, &timeo);
+                        
+        } while (wait && error != 0);
 
-        error = pthread_mutex_timedlock(&msgq->mtx, &abstm);
         return error;
 }
