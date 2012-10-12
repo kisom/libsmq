@@ -28,7 +28,9 @@ clean:
 
 install: $(LIB).a man
 	install -d $(PREFIX)/lib
+	install -d $(PREFIX)/include
 	install $(LIB).a $(PREFIX)/lib/$(LIB).a
+	install smq.h $(PREFIX)/include/smq.h
 	install -m 0755 -d $(MANDIR)/man3
 	install -m 0444 $(MANPAGE) $(MANDIR)/man3/$(MANPAGE)
 
