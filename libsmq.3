@@ -13,7 +13,8 @@
 .Ft int
 .Fo msgqueue_push
 .Fa "struct msgqueue *msgq"
-.Fa "const char *msgdata"
+.Fa "uint8_t *msgdata"
+.Fa "size_t msgsz"
 .Fc
 .Ft "struct s_message *"
 .Fo "msgqueue_pop"

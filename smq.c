@@ -70,7 +70,7 @@ msgqueue_create()
  * msgqueue_push adds a new message to the queue.
  */
 int
-msgqueue_push(s_msgqueuep msgq, const char *msgdata)
+msgqueue_push(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
 {
 	struct s_msg	*msg;
 	size_t		cplen;
@@ -81,8 +81,7 @@ msgqueue_push(s_msgqueuep msgq, const char *msgdata)
         else if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
 		return error;
 
-	cplen = strlen(msgdata);
-	cplen = (cplen + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : cplen + 1;
+	cplen = (msgsz + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz + 1;
 
 	if (NULL == (msg->msg = calloc(cplen + 1, sizeof(char)))) {
                 free(msg);
@@ -203,6 +202,7 @@ acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
                         select(0, NULL, NULL, NULL, &timeo);
                         
         } while (wait && error != 0);
-
+        if (error != 0)
+                warn("failed to acquire lock");
         return error;
 }

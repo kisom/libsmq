@@ -109,7 +109,7 @@ load_data(void *junk)
                 }
                 error = 1;
                 while (error) {
-                        error = msgqueue_push(mq, buf);
+                        error = msgqueue_push(mq, (uint8_t *)buf, BUFSZ);
                         if (!error) {
                                 printf("[+] <load_data> push %d bytes\n",
                                     BUFSZ);
@@ -175,9 +175,9 @@ sthrd_test()
         struct s_message        *msg = NULL;
 
         msq = msgqueue_create();
-        if (0 != msgqueue_push(msq, "foo"))
+        if (0 != msgqueue_push(msq, (uint8_t *)"foo", strlen("foo")))
                 printf("[!] push 1 failed\n");
-        if (0 != msgqueue_push(msq, "bar"))
+        if (0 != msgqueue_push(msq, (uint8_t *)"bar", strlen("bar")))
                 printf("[!] push 2 failed\n");
         if (NULL == (msg = msgqueue_pop(msq)))
                 printf("[!] pop failed\n");

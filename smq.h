@@ -66,7 +66,7 @@ typedef struct s_msgqueue * s_msgqueuep;
 
 
 s_msgqueuep              msgqueue_create(void);
-int	                 msgqueue_push(s_msgqueuep, const char *);
+int	                 msgqueue_push(s_msgqueuep, uint8_t *, size_t);
 struct s_message        *msgqueue_pop(s_msgqueuep);
 int	                 msgqueue_destroy(s_msgqueuep);
 
