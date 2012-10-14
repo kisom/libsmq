@@ -32,9 +32,9 @@ a sequence number, and a variable indicating the size of the data
 array. A message struct is defined as:
 .Bd -literal
 struct s_message {
-        uint8_t			*msg;
-	size_t			msglen;
-	size_t			seq;
+        uint8_t                 *msg;
+	size_t                   msglen;
+	size_t                   seq;
 };
 .Ed
 A queue stores an arbitrary number of messages in a standard
@@ -66,7 +66,15 @@ The
 .Ic nmsg
 member contains the number of messages currently in the queue, while
 .Ic lastseq
-contains the last sequence number issued out.
+contains the last sequence number issued out. Messages are added with
+.Ic msgqueue_push ,
+which expects an array of
+.Ft uint8_t
+values (for storing binary data). A length is passed in so that
+messages constructed from packing structures are still properly
+copied.
+.Ic msgqueue_pop
+returns the oldest message in the queue, removing it from the list.
 .Sh RETURN VALUES
 .Ic msgqueue_create
 returns an initialised message queue or NULL if one could not be
@@ -77,6 +85,39 @@ and
 return 0 on success, and nonzero on error. If the value is -1, then
 errno has been set; if >0, the error is due to a pthreads error, such
 as a failure to acquire a lock.
+.Sh EXAMPLES
+A small part of a sample program might look like:
+.Bd -literal
+        struct s_msgqueue       *msgq;
+        struct s_message        *msg;
+        char                    *buf;
+        size_t                   buflen;
+
+        msgq = msgqueue_create();
+        /*
+         * buf is filled with some data, and buflen is set to the
+         * length of this data.
+         */
+
+        /* push buf into the queue */
+        if (0 != msgqueue_push(msgq, (uint8_t *)buf, buflen))
+                warn("push failed");
+
+        /*
+         * retrieve a message; assume buf has been allocated memory
+         * and the message is a C-string. it would be prudent to
+         * ensure msg->msglen is less than buflen (assuming buflen
+         * contains the size of buf).
+         */
+        if (NULL == (msg = msgqueue_pop(msgq))) {
+                warn("no message");
+        } else {
+                memcpy(buf, msg->msg, msg->msglen);
+                printf("[+] message: %s\n", buf);
+                free(msg);
+                msg = NULL;
+        }
+.Ed
 .Sh ERRORS
 The most typical cause for errors in the library will be a failure
 to acquire a lock; while this is technically an error, it is an
