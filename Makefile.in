@@ -1,6 +1,6 @@
+CC ?= gcc
+AR ?= ar
 VERSION := 1.0.0
-CC := gcc
-AR := ar
 OBJS := smq.o
 LIB := libsmq
 MANPAGE := $(LIB).3
