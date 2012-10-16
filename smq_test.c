@@ -117,7 +117,7 @@ load_data(void *junk)
                                     BUFSZ);
                         } else {
                                 printf("[!] <load_data> failed to enqueue "
-                                       "%d bytes\n", BUFSZ);
+                                    "%d bytes\n", BUFSZ);
                                 ms_sleep(25);
                         }
                 }

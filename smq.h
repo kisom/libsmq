@@ -41,26 +41,26 @@ static const char       LIBSMQ_VERSION[] = VERSION;
 
 struct s_message {
         uint8_t			*msg;
-	size_t			msglen;
-	size_t			seq;
+        size_t			 msglen;
+        size_t			 seq;
 };
 
 struct s_msg {
-	uint8_t			*msg;
-	size_t			msglen;
-	size_t			seq;
-	TAILQ_ENTRY(s_msg)	msglst;
+        uint8_t			*msg;
+        size_t			 msglen;
+        size_t			 seq;
+        TAILQ_ENTRY(s_msg)	 msglst;
 };
 TAILQ_HEAD(tq_msg, s_msg);
 typedef struct tq_msg * tq_msgp;
 
 
 struct s_msgqueue {
-	tq_msgp		queue;
-	pthread_mutex_t	mtx;
-	size_t		nmsg;
-	size_t		lastseq;
-	struct timespec block;
+        tq_msgp		queue;
+        pthread_mutex_t	mtx;
+        size_t		nmsg;
+        size_t		lastseq;
+        struct timespec block;
 };
 typedef struct s_msgqueue * s_msgqueuep;
 
