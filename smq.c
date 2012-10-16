@@ -57,7 +57,6 @@ msgqueue_create()
         }
         if (error) {
                 free(msgq->queue);
-                msgq->queue = NULL;
                 free(msgq);
                 msgq = NULL;
         }
@@ -81,11 +80,10 @@ msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
         else if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
                 return error;
 
-        cplen = (msgsz + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz + 1;
+        cplen = (msgsz) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz;
 
-        if (NULL == (msg->msg = calloc(cplen + 1, sizeof(char)))) {
+        if (NULL == (msg->msg = calloc(cplen, sizeof(char)))) {
                 free(msg);
-                msg = NULL;
                 return error;
         }
 
@@ -136,7 +134,6 @@ msgqueue_dequeue(s_msgqueuep msgq)
                 } else {
                         free(msgh);
                         free(msg);
-                        msgh = NULL;
                         msg = NULL;
                 }
                 error = pthread_mutex_unlock(&msgq->mtx);
