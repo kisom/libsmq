@@ -42,27 +42,27 @@ static int              acquire_lock(pthread_mutex_t, struct timespec *, int);
 s_msgqueuep
 msgqueue_create()
 {
-	s_msgqueuep	msgq;
-	int		error = -1;
+        s_msgqueuep	 msgq;
+        int		 error = -1;
 
-	msgq = NULL;
-	if (NULL == (msgq = calloc(1, sizeof(*msgq))))
-		return msgq;
-	if (NULL != (msgq->queue = calloc(1, sizeof(struct tq_msg)))) {
-		TAILQ_INIT(msgq->queue);
-		msgq->nmsg = 0;
-		msgq->block.tv_sec = LOCK_WAIT_S;
-		msgq->block.tv_nsec = LOCK_WAIT_NS;
-		error = pthread_mutex_init(&msgq->mtx, NULL);
-	}
-	if (error) {
-		free(msgq->queue);
-		msgq->queue = NULL;
-		free(msgq);
-		msgq = NULL;
-	}
+        msgq = NULL;
+        if (NULL == (msgq = calloc(1, sizeof(*msgq))))
+                return msgq;
+        if (NULL != (msgq->queue = calloc(1, sizeof(struct tq_msg)))) {
+                TAILQ_INIT(msgq->queue);
+                msgq->nmsg = 0;
+                msgq->block.tv_sec = LOCK_WAIT_S;
+                msgq->block.tv_nsec = LOCK_WAIT_NS;
+                error = pthread_mutex_init(&msgq->mtx, NULL);
+        }
+        if (error) {
+                free(msgq->queue);
+                msgq->queue = NULL;
+                free(msgq);
+                msgq = NULL;
+        }
 
-	return msgq;
+        return msgq;
 }
 
 
@@ -72,22 +72,22 @@ msgqueue_create()
 int
 msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
 {
-	struct s_msg	*msg;
-	size_t		cplen;
-	int		error = -1;
+        struct s_msg	*msg;
+        size_t		 cplen;
+        int		 error = -1;
 
         if (msgq == NULL || msgq->queue == NULL || msgdata == NULL)
                 return error;
         else if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
-		return error;
+                return error;
 
-	cplen = (msgsz + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz + 1;
+        cplen = (msgsz + 1) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz + 1;
 
-	if (NULL == (msg->msg = calloc(cplen + 1, sizeof(char)))) {
+        if (NULL == (msg->msg = calloc(cplen + 1, sizeof(char)))) {
                 free(msg);
                 msg = NULL;
                 return error;
-	}
+        }
 
         if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
                 memcpy(msg->msg, msgdata, cplen);
@@ -97,7 +97,7 @@ msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
                 msgq->nmsg++;
                 error = pthread_mutex_unlock(&msgq->mtx);
         }
-	return error;
+        return error;
 }
 
 
@@ -111,20 +111,20 @@ msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
 struct s_message *
 msgqueue_dequeue(s_msgqueuep msgq)
 {
-	struct s_msg            *msgh = NULL;
+        struct s_msg            *msgh = NULL;
         struct s_message        *msg = NULL;
-        int                     error = -1;
+        int                      error = -1;
 
         if (NULL == msgq || NULL == msgq->queue)
                 return msg;
-	else if (NULL == (msg = calloc(1, sizeof(struct s_message))))
-		return msg;
-	else if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
-		msgh = TAILQ_FIRST(msgq->queue);
+        else if (NULL == (msg = calloc(1, sizeof(struct s_message))))
+                return msg;
+        else if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
+                msgh = TAILQ_FIRST(msgq->queue);
                 if ((NULL != msgh) &&
                     (NULL != (msg->msg = calloc((msgh->msglen) + 1, 
-                                                 sizeof(*msgh->msg))))) {
-	                memcpy(msg->msg, msgh->msg, msgh->msglen);
+                                                sizeof(*msgh->msg))))) {
+                        memcpy(msg->msg, msgh->msg, msgh->msglen);
                         msg->msglen = msgh->msglen;
                         msg->seq = msgh->seq;
                         free(msgh->msg);
@@ -139,13 +139,13 @@ msgqueue_dequeue(s_msgqueuep msgq)
                         msgh = NULL;
                         msg = NULL;
                 }
-		error = pthread_mutex_unlock(&msgq->mtx);
-	} else {
+                error = pthread_mutex_unlock(&msgq->mtx);
+        } else {
                 free(msg);
                 msg = NULL;
         }
 
-	return msg;
+        return msg;
 }
 
 
@@ -156,29 +156,29 @@ msgqueue_dequeue(s_msgqueuep msgq)
 int
 msgqueue_destroy(s_msgqueuep msgq)
 {
-	struct s_msg	*msg;
-	int		error = -1;
+        struct s_msg	*msg;
+        int		 error = -1;
 
-	if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
-		while ((msg = TAILQ_FIRST(msgq->queue))) {
-			free(msg->msg);
-			msg->msg = NULL;
-			TAILQ_REMOVE(msgq->queue, msg, msglst);
-			free(msg);
-			msg = NULL;
-		}
-		free(msgq->queue);
-		msgq->queue = NULL;
-		error = (pthread_mutex_unlock(&msgq->mtx));
-	}
+        if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
+                while ((msg = TAILQ_FIRST(msgq->queue))) {
+                        free(msg->msg);
+                        msg->msg = NULL;
+                        TAILQ_REMOVE(msgq->queue, msg, msglst);
+                        free(msg);
+                        msg = NULL;
+                }
+                free(msgq->queue);
+                msgq->queue = NULL;
+                error = (pthread_mutex_unlock(&msgq->mtx));
+        }
 
-	if (0 == error) {
-		pthread_mutex_destroy(&msgq->mtx);
-		free(msgq);
-		msgq = NULL;
-	}
-	
-	return error;
+        if (0 == error) {
+                pthread_mutex_destroy(&msgq->mtx);
+                free(msgq);
+                msgq = NULL;
+        }
+
+        return error;
 }
 
 
@@ -189,8 +189,8 @@ msgqueue_destroy(s_msgqueuep msgq)
 static int
 acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
 {
-        int             error;
-        struct timeval  timeo = { 0, 10000 };
+        int              error;
+        struct timeval   timeo = { 0, 10000 };
 
         do {
                 timeo.tv_sec = ts->tv_sec;
@@ -200,7 +200,7 @@ acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
                         break;
                 else if (error && wait)
                         select(0, NULL, NULL, NULL, &timeo);
-                        
+
         } while (wait && error != 0);
         if (0 != error)
                 warn("failed to acquire lock");
