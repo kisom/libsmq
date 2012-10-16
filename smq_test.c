@@ -30,6 +30,7 @@
 #define BUFSZ                   32
 #define NMSG                    32
 static struct s_msgqueue       *mq;
+extern const char               LIBSMQ_VERSION[];
 
 static void     *load_data(void *);
 static void     *read_data(void *);
@@ -43,6 +44,7 @@ main(void)
         pthread_t        shover;
         pthread_t        pusher;
 
+        printf("[+] testing %s\n", LIBSMQ_VERSION);
         printf("[+] start single threaded test\n");
         sthrd_test();
 
