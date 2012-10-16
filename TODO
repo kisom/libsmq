@@ -1,0 +1,2 @@
+* examine use of malloc v. calloc
+* caller should get out of dequeue what they put into enqueue
