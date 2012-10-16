@@ -121,7 +121,7 @@ msgqueue_dequeue(s_msgqueuep msgq)
 		return msg;
 	else if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
 		msgh = TAILQ_FIRST(msgq->queue);
-                if ((msgh != NULL) &&
+                if ((NULL != msgh) &&
                     (NULL != (msg->msg = calloc((msgh->msglen) + 1, 
                                                  sizeof(*msgh->msg))))) {
 	                memcpy(msg->msg, msgh->msg, msgh->msglen);
@@ -202,7 +202,7 @@ acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
                         select(0, NULL, NULL, NULL, &timeo);
                         
         } while (wait && error != 0);
-        if (error != 0)
+        if (0 != error)
                 warn("failed to acquire lock");
         return error;
 }
