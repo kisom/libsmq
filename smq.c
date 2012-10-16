@@ -55,7 +55,7 @@ msgqueue_create()
 		msgq->block.tv_nsec = LOCK_WAIT_NS;
 		error = pthread_mutex_init(&msgq->mtx, NULL);
 	}
-	if (NULL != msgq && error) {
+	if (error) {
 		free(msgq->queue);
 		msgq->queue = NULL;
 		free(msgq);
@@ -67,10 +67,10 @@ msgqueue_create()
 
 
 /*
- * msgqueue_push adds a new message to the queue.
+ * msgqueue_enqueue adds a new message to the queue.
  */
 int
-msgqueue_push(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
+msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
 {
 	struct s_msg	*msg;
 	size_t		cplen;
@@ -102,14 +102,14 @@ msgqueue_push(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
 
 
 /*
- * msgqueue_pop removes a message from the queue and returns it.
+ * msgqueue_dequeue removes a message from the queue and returns it.
  * the caller should pass an empty *msg structure in; if it's NULL
  * after the call, an error occurred. Either the queue is empty (which
  * can be checked with msgq->nmsg), memory couldn't be allocated, or
  * a lock on the queue could not be obtained.
  */
 struct s_message *
-msgqueue_pop(s_msgqueuep msgq)
+msgqueue_dequeue(s_msgqueuep msgq)
 {
 	struct s_msg            *msgh = NULL;
         struct s_message        *msg = NULL;
