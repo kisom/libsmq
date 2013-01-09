@@ -5,8 +5,8 @@ AC_INIT([libsmq],
         [libsmq],
         [https://bitbucket.org/kisom/libsmq])
 AM_INIT_AUTOMAKE([1.11 foreign])
-AM_CONFIG_SRCDIR([src/smq.h])
-AM_CHECK_HEADERS
+AC_CONFIG_SRCDIR([src/smq.h])
+AC_CHECK_HEADERS
 AC_CANONICAL_HOST
 AC_CONFIG_FILES([Makefile src/Makefile doc/Makefile])
 
