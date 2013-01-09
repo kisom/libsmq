@@ -11,13 +11,13 @@
 .Fa void
 .Fc
 .Ft int
-.Fo msgqueue_push
+.Fo msgqueue_enqueue
 .Fa "struct msgqueue *msgq"
 .Fa "uint8_t *msgdata"
 .Fa "size_t msgsz"
 .Fc
 .Ft "struct s_message *"
-.Fo "msgqueue_pop"
+.Fo "msgqueue_dequeue"
 .Fa "struct msgqueue *msgq"
 .Fc
 .Ft int
