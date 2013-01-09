@@ -1,73 +1,55 @@
 /*
  * Copyright (c) 2012 Kyle Isom <kyle@tyrfingr.is>
- * 
+ *
  * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above 
+ * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL 
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED 
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE 
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
  * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
  * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR 
- * PERFORMANCE OF THIS SOFTWARE. 
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  * ---------------------------------------------------------------------
  */
 
-#ifndef __LIBSMQ_MSG_H
-#define __LIBSMQ_MSG_H
+
+#ifndef __LIBSMQ_SMQ_H
+#define __LIBSMQ_SMQ_H
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <pthread.h>
-#include <stdint.h>
 #include <stdlib.h>
 
 
-/*
- * global constants:
- *	MSG_MAX_SZ is the maximum length of a message.
- *	LOCK_WAIT_S is the maximum number of seconds to wait to acquire a
- *	    lock on the message queue.
- *	LOCK_WAIT_NS is the maximum number of nanoseconds to wait to acquire
- *	    a lock on the message queue.
- */
-static const size_t	MSG_MAX_SZ = 4096;
-static const time_t	LOCK_WAIT_S = 1;
-static const long	LOCK_WAIT_NS = 0;
-static const char       LIBSMQ_VERSION[] = VERSION;
-
-
-struct s_message {
-        uint8_t			*msg;
-        size_t			 msglen;
-        size_t			 seq;
+struct msgq_msg {
+        void    *data;
+        size_t   data_len;
 };
 
-struct s_msg {
-        uint8_t			*msg;
-        size_t			 msglen;
-        size_t			 seq;
-        TAILQ_ENTRY(s_msg)	 msglst;
+struct msgq_entry {
+        TAILQ_ENTRY(msgq_msg);
+        void  *data;
+        size_t  data_len;
 };
-TAILQ_HEAD(tq_msg, s_msg);
-typedef struct tq_msg * tq_msgp;
+TAILQ_HEAD(tq_msg, msgq_entry);
 
-
-struct s_msgqueue {
-        tq_msgp		queue;
-        pthread_mutex_t	mtx;
-        size_t		nmsg;
-        size_t		lastseq;
-        struct timespec block;
+struct msgq {
+        struct tq_msg   *queue;
+        size_t           queue_len;
+        pthread_mutex_t  mtx;
 };
-typedef struct s_msgqueue * s_msgqueuep;
 
 
-s_msgqueuep              msgqueue_create(void);
-int	                 msgqueue_enqueue(s_msgqueuep, uint8_t *, size_t);
-struct s_message        *msgqueue_dequeue(s_msgqueuep);
-int	                 msgqueue_destroy(s_msgqueuep);
+struct msqg     *msgq_create(void);
+int              msgq_enqueue(struct msgq_msg *);
+struct msgq_msg *msgq_dequeue(void);
+int              msgq_destroy(struct msgq *);
+size_t           msgq_len(struct msgq *);
 
+struct msgq_msg *msg_create(void *, size_t);
+int              msg_destroy(struct msgq_msg *);
 #endif

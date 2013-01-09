@@ -16,191 +16,103 @@
  * ---------------------------------------------------------------------
  */
 
+
 #include <sys/types.h>
 #include <sys/queue.h>
-#include <sys/time.h>
-#include <err.h>
-#include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
 #include "smq.h"
 
-extern const size_t	MSG_MAX_SZ;
-extern const time_t	LOCK_WAIT_S;
-extern const long	LOCK_WAIT_US;
 
-
-static int              acquire_lock(pthread_mutex_t, struct timespec *, int);
+static struct msgq_msg          *msgq_entry_to_msg(struct msgq_entry *);
+static struct msgq_entry        *msg_to_msgq_entry(struct msgq_msg *);
 
 /*
- * create and initialise a new message queue. properly allocates all
- * resources, and returns the allocated and initialised msgqueue. if there
- * was a failure to allocate memory, returns NULL.
+ * msgq_create initialises and returns a new, empty message queue.
  */
-s_msgqueuep
-msgqueue_create()
+struct msqg
+*msgq_create()
 {
-        s_msgqueuep	 msgq;
-        int		 error = -1;
 
-        msgq = NULL;
-        if (NULL == (msgq = calloc(1, sizeof(*msgq))))
-                return msgq;
-        if (NULL != (msgq->queue = calloc(1, sizeof(struct tq_msg)))) {
-                TAILQ_INIT(msgq->queue);
-                msgq->nmsg = 0;
-                msgq->block.tv_sec = LOCK_WAIT_S;
-                msgq->block.tv_nsec = LOCK_WAIT_NS;
-                error = pthread_mutex_init(&msgq->mtx, NULL);
-        }
-        if (error) {
-                free(msgq->queue);
-                free(msgq);
-                msgq = NULL;
-        }
-
-        return msgq;
 }
 
 
 /*
- * msgqueue_enqueue adds a new message to the queue.
+ * msgq_enqueue adds a new message to the queue.
  */
 int
-msgqueue_enqueue(s_msgqueuep msgq, uint8_t *msgdata, size_t msgsz)
+msgq_enqueue(struct msgq_msg *queue)
 {
-        struct s_msg	*msg;
-        size_t		 cplen;
-        int		 error = -1;
 
-        if (msgq == NULL || msgq->queue == NULL || msgdata == NULL)
-                return error;
-        else if (NULL == (msg = calloc(1, sizeof(struct s_msg))))
-                return error;
-
-        cplen = (msgsz) > MSG_MAX_SZ ? MSG_MAX_SZ : msgsz;
-
-        if (NULL == (msg->msg = calloc(cplen, sizeof(char)))) {
-                free(msg);
-                return error;
-        }
-
-        if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
-                memcpy(msg->msg, msgdata, cplen);
-                msg->seq = ++msgq->lastseq;
-                msg->msglen = cplen-1;
-                TAILQ_INSERT_TAIL(msgq->queue, msg, msglst);
-                msgq->nmsg++;
-                error = pthread_mutex_unlock(&msgq->mtx);
-        }
-        return error;
 }
 
 
 /*
- * msgqueue_dequeue removes a message from the queue and returns it.
- * the caller should pass an empty *msg structure in; if it's NULL
- * after the call, an error occurred. Either the queue is empty (which
- * can be checked with msgq->nmsg), memory couldn't be allocated, or
- * a lock on the queue could not be obtained.
+ * msgq_dequeue retrieves the next message from the queue.
  */
-struct s_message *
-msgqueue_dequeue(s_msgqueuep msgq)
+struct msgq_msg
+*msgq_dequeue()
 {
-        struct s_msg            *msgh = NULL;
-        struct s_message        *msg = NULL;
-        int                      error = -1;
 
-        if (NULL == msgq || NULL == msgq->queue)
-                return msg;
-        else if (NULL == (msg = calloc(1, sizeof(struct s_message))))
-                return msg;
-        else if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
-                msgh = TAILQ_FIRST(msgq->queue);
-                if ((NULL != msgh) &&
-                    (NULL != (msg->msg = calloc((msgh->msglen) + 1, 
-                                                sizeof(*msgh->msg))))) {
-                        memcpy(msg->msg, msgh->msg, msgh->msglen);
-                        msg->msglen = msgh->msglen;
-                        msg->seq = msgh->seq;
-                        free(msgh->msg);
-                        msgh->msg = NULL;
-                        TAILQ_REMOVE(msgq->queue, msgh, msglst);
-                        msgq->nmsg--;
-                        free(msgh);
-                        msgh = NULL;
-                } else {
-                        free(msgh);
-                        free(msg);
-                        msg = NULL;
-                }
-                error = pthread_mutex_unlock(&msgq->mtx);
-        } else {
-                free(msg);
-                msg = NULL;
-        }
-
-        return msg;
 }
 
 
 /*
- * destroy a message queue, properly clearing the list and freeing all
- * allocated memory.
+ * msgq_destroy carries out the proper destruction of a message queue.
  */
 int
-msgqueue_destroy(s_msgqueuep msgq)
+msgq_destroy(struct msgq *queue)
 {
-        struct s_msg	*msg;
-        int		 error = -1;
 
-        if (0 == (error = acquire_lock(msgq->mtx, &msgq->block, 0))) {
-                while ((msg = TAILQ_FIRST(msgq->queue))) {
-                        free(msg->msg);
-                        msg->msg = NULL;
-                        TAILQ_REMOVE(msgq->queue, msg, msglst);
-                        free(msg);
-                        msg = NULL;
-                }
-                free(msgq->queue);
-                msgq->queue = NULL;
-                error = (pthread_mutex_unlock(&msgq->mtx));
-        }
-
-        if (0 == error) {
-                pthread_mutex_destroy(&msgq->mtx);
-                free(msgq);
-                msgq = NULL;
-        }
-
-        return error;
 }
 
 
 /*
- * acquire_lock attempts to lock the message queue, returning 1 if
- * successful, and 0 if not.
+ * msgq_len returns the number of messages in the queue.
  */
-static int
-acquire_lock(pthread_mutex_t mtx, struct timespec *ts, int wait)
+size_t
+msgq_len(struct msgq *queue)
 {
-        int              error;
-        struct timeval   timeo = { 0, 10000 };
 
-        do {
-                timeo.tv_sec = ts->tv_sec;
-                timeo.tv_usec = ts->tv_nsec * 1000;
-                error = pthread_mutex_trylock(&mtx);
-                if (EINVAL == error)
-                        break;
-                else if (error && wait)
-                        select(0, NULL, NULL, NULL, &timeo);
+}
 
-        } while (wait && error != 0);
-        if (0 != error)
-                warn("failed to acquire lock");
-        return error;
+
+/*
+ * msg_create creates a new message structure for passing into a message queue.
+ */
+struct msgq_msg
+*msg_create(void *message_data, size_t message_len)
+{
+
+}
+
+
+/*
+ * msg_destroy cleans up a message.
+ */
+int
+msg_destroy(struct msgq_msg *message)
+{
+
+}
+
+
+/*
+ * msgq_entry_to_msg takes a msgq_entry and returns a msgq_msg from it.
+ */
+struct msgq_msg
+*msgq_entry_to_msg(struct msgq_entry *entry)
+{
+
+}
+
+
+/*
+ * msg_to_msgq_entry converts a msgq_msg to a msgq_entry.
+ */
+struct msgq_entry
+*msg_to_msgq_entry(struct msgq_msg *message)
+{
+
 }
