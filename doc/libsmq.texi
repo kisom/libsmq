@@ -1,0 +1,123 @@
+\input texinfo   @c -*-texinfo-*-
+@comment $Id: GNU-Sample-Texts.html,v 1.7 2008/09/19 15:44:59 karl Exp $
+@comment %**start of header
+@setfilename libsmq.info
+@include version.texi
+@settitle libsmq @value{VERSION}
+@syncodeindex pg cp
+@comment %**end of header
+@copying
+This manual is for libsmq, a simple message queue library.
+
+Copyright @copyright{} 2013 Kyle Isom <@email{kyle@@tyrfingr.is}>
+
+@quotation
+This document is released under a dual license. These two licenses are the 
+public domain and a Creative Commons Attribution-ShareAlike 3.0 Unported 
+License. The purpose of this dual-license is to attribute you, the end user,
+to use this documentation for whatever purpose you wish. As such, you, the
+end user, are free to select either license at will.
+
+This document is released into the public domain.
+
+This work is licensed under the Creative Commons Attribution-ShareAlike 3.0 
+Unported License. To view a copy of this license, visit 
+http://creativecommons.org/licenses/by-sa/3.0/ or send a letter to Creative 
+Commons, 444 Castro Street, Suite 900, Mountain View, California, 94041, USA.
+@end quotation
+@end copying
+
+@dircategory Texinfo documentation system
+@direntry
+* introduction: (intro)Introduction to libsmq
+@end direntry
+
+@titlepage
+@title libsmq
+@subtitle for version @value{VERSION}, @value{UPDATED}
+@author Kyle Isom (@email{kyle@@tyrfingr.is})
+@page
+@vskip 0pt plus 1filll
+@paragraphindent 0
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top libsmq
+
+This manual is for libsmq (version @value{VERSION}, @value{UPDATED}).
+@end ifnottex
+
+@menu
+* A Quick Introduction::
+* Manual Copyright::
+* Index::
+@end menu
+
+
+@node A Quick Introduction
+@chapter A Quick Introduction
+
+@pindex intro
+@cindex introduction to @command{libsmq}
+libsmq provides simple, thread-safe message queues (LIFO buffers)
+modeled after Go's channels. Messages contain an array of @code{uint8_t}
+values, a sequence number, and a variable indicating the size of the
+data array. A message struct is defined as:
+
+@verbatim
+struct s_message {
+        uint8_t                 *msg;
+        size_t                   msglen;
+        size_t                   seq;
+};
+@end verbatim
+
+A small part of a sample program might look like:
+
+@verbatim
+struct s_msgqueue       *msgq;
+struct s_message        *msg;
+char                    *buf;
+size_t                   buflen;
+
+msgq = msgqueue_create();
+/*
+ * buf is filled with some data, and buflen is set to the
+ * length of this data.
+ */
+
+/* push buf into the queue */
+if (0 != msgqueue_push(msgq, (uint8_t *)buf, buflen))
+        warn("push failed");
+
+/*
+ * retrieve a message; assume buf has been allocated memory
+ * and the message is a C-string. it would be prudent to
+ * ensure msg->msglen is less than buflen (assuming buflen
+ * contains the size of buf).
+ */
+if (NULL == (msg = msgqueue_pop(msgq))) {
+        warn("no message");
+} else {
+        memcpy(buf, msg->msg, msg->msglen);
+        printf("[+] message: %s0, buf);
+        free(msg);
+        msg = NULL;
+}
+@end verbatim
+
+@node Manual Copyright
+@appendix Manual Copyright
+
+@include cc.texi
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
