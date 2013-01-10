@@ -24,32 +24,35 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#define SMQ_CONTAINER_ONLY      0
+#define SMQ_DESTROY_ALL         1
 
-struct msgq_msg {
+
+struct smq_msg {
         void    *data;
         size_t   data_len;
 };
 
-struct msgq_entry {
-        TAILQ_ENTRY(msgq_msg);
-        void  *data;
-        size_t  data_len;
+struct smq_entry {
+        void                    *data;
+        size_t                   data_len;
+        TAILQ_ENTRY(smq_entry)   entries;
 };
-TAILQ_HEAD(tq_msg, msgq_entry);
+TAILQ_HEAD(tq_msg, smq_entry);
 
-struct msgq {
+struct smq {
         struct tq_msg   *queue;
         size_t           queue_len;
         pthread_mutex_t  mtx;
 };
 
 
-struct msqg     *msgq_create(void);
-int              msgq_enqueue(struct msgq_msg *);
-struct msgq_msg *msgq_dequeue(void);
-int              msgq_destroy(struct msgq *);
-size_t           msgq_len(struct msgq *);
+struct smq      *smq_create(void);
+int              smq_enqueue(struct smq *, struct smq_msg *);
+struct smq_msg  *smq_dequeue(struct smq *);
+int              smq_destroy(struct smq *);
+size_t           smq_len(struct smq *);
 
-struct msgq_msg *msg_create(void *, size_t);
-int              msg_destroy(struct msgq_msg *);
+struct smq_msg  *msg_create(void *, size_t);
+int              msg_destroy(struct smq_msg *, int);
 #endif
