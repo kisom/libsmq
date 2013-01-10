@@ -91,6 +91,8 @@ smq_dequeue(struct smq *queue)
 	struct smq_msg *message;
 	struct smq_entry *entry;
 
+        if (NULL == queue)
+                return NULL;
 	if (0 == lock_queue(queue)) {
 		entry = TAILQ_FIRST(queue->queue);
 		if (NULL != entry) {
@@ -112,6 +114,9 @@ smq_destroy(struct smq *queue)
 {
 	struct smq_entry *entry;
 	int retval;
+
+        if (NULL == queue)
+                return 0;
 
 	if (0 != (retval = (lock_queue(queue)))) {
 		return retval;
@@ -153,6 +158,9 @@ smq_msg_create(void *message_data, size_t message_len)
 {
 	struct smq_msg *message;
 
+        if (NULL == message_data || message_len == 0)
+                return NULL;
+
 	message = (struct smq_msg *)malloc(sizeof(struct smq_msg));
 	if (NULL == message) {
 		return NULL;
@@ -169,7 +177,7 @@ smq_msg_create(void *message_data, size_t message_len)
 int
 smq_msg_destroy(struct smq_msg *message, int opts)
 {
-	if (SMQ_CONTAINER_ONLY != opts)
+	if (NULL != message && SMQ_CONTAINER_ONLY != opts)
 		free(message->data);
 	free(message);
 	return 0;
@@ -184,6 +192,8 @@ smq_entry_to_msg(struct smq_entry *entry)
 {
 	struct smq_msg *message;
 
+        if (NULL == entry)
+                return NULL;
 	message = (struct smq_msg *)malloc(sizeof(struct smq_msg));
 	if (NULL == message)
 		return message;
@@ -200,6 +210,8 @@ msg_to_smq_entry(struct smq_msg *message)
 {
 	struct smq_entry *entry;
 
+        if (NULL == message)
+                return NULL;
 	entry = (struct smq_entry *)malloc(sizeof(struct smq_entry));
 	if (NULL == entry)
 		return entry;
