@@ -1,1 +1,3 @@
-SUBDIRS = src doc
+SUBDIRS = src doc test
+
+TESTS := test/smq_test
