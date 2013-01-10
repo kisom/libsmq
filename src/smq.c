@@ -109,7 +109,8 @@ smq_dequeue(struct smq *queue)
 
 
 /*
- * smq_destroy carries out the proper destruction of a message queue.
+ * smq_destroy carries out the proper destruction of a message queue. All
+ * messages are fully destroyed.
  */
 int
 smq_destroy(struct smq *queue)
@@ -178,6 +179,7 @@ msg_destroy(struct smq_msg *message, int opts)
         if (SMQ_CONTAINER_ONLY != opts)
                 free(message->data);
         free(message);
+        return 0;
 }
 
 
@@ -221,7 +223,7 @@ msg_to_smq_entry(struct smq_msg *message)
 int
 lock_queue(struct smq *queue)
 {
-        return pthread_mutex_trylock(&queue->mtx);
+        return pthread_mutex_lock(&queue->mtx);
 }
 
 
