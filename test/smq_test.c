@@ -34,7 +34,7 @@
 
 
 #define SMQ_TEST_DATA           "a quick brown fox jumps over the lazy dog"
-#define SMQ_TEST_RUNS           1024
+#define SMQ_TEST_RUNS           10000000
 
 
 void    *pusher_run(void *);
@@ -130,7 +130,7 @@ test_million_allocs(void)
 {
 	int i;
 
-	for (i = 0; i < 1000000; i++)
+	for (i = 0; i < 100000; i++)
 		test_simple_smq();
 }
 
@@ -147,20 +147,24 @@ test_threaded_smq(void)
         msgq = smq_create();
         CU_ASSERT(NULL != msgq);
 
-        status = pthread_create(&pusher_thd, NULL, pusher_run, (void *)msgq);
+        status = pthread_create(&pusher_thd, NULL, pusher_run,
+                                (void *)smq_dup(msgq));
         CU_ASSERT(0 == status);
-        status = pthread_create(&puller_thd, NULL, puller_run, (void *)msgq);
+        status = pthread_create(&puller_thd, NULL, puller_run,
+                                (void *)smq_dup(msgq));
         CU_ASSERT(0 == status);
 
         status = pthread_join(pusher_thd, &thread_res);
         CU_ASSERT(0 == status);
         CU_ASSERT(NULL != thread_res);
         CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+        free(thread_res);
 
         status = pthread_join(puller_thd, &thread_res);
         CU_ASSERT(0 == status);
         CU_ASSERT(NULL != thread_res);
         CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+        free(thread_res);
 
         CU_ASSERT(0 == smq_len(msgq));
         CU_ASSERT(0 == smq_destroy(msgq));
@@ -177,25 +181,31 @@ pusher_run(void *args)
         int             *i;     /* int pointer so we can return this    */
                                 /*      from thread                     */
 
-        i = (int *)malloc(sizeof(*i));
-        if (NULL == i)
-                pthread_exit(NULL);
-
         msgq = (smq)args;
+        i = (int *)malloc(sizeof(*i));
+        if (NULL == i) {
+                smq_destroy(msgq);
+                pthread_exit(NULL);
+        }
+
         for (*i = 0; *i < SMQ_TEST_RUNS; (*i)++) {
                 data = (int *)malloc(sizeof(i));
-                if (NULL == data)
+                if (NULL == data) {
+                        smq_destroy(msgq);
                         pthread_exit(i);
+                }
+
                 *data = *i;
                 message = smq_msg_create((void *)data, sizeof(*data));
                 if (NULL == message) {
+                        smq_destroy(msgq);
                         free(data);
                         pthread_exit(i);
                 } else {
                         while (0 != smq_send(msgq, message)) ;
-                                /* ms_sleep(25); */
                 }
         }
+        smq_destroy(msgq);
         pthread_exit(i);
         return junk;
 }
@@ -216,6 +226,7 @@ puller_run(void *args)
 
         *msg_count = 0;
         msgq = (smq)args;
+        sleep(1);
         while (1) {
                 message = smq_receive(msgq);
                 if (NULL == message)
@@ -233,6 +244,7 @@ puller_run(void *args)
                 if (SMQ_TEST_RUNS == *msg_count)
                         break;
         }
+        smq_destroy(msgq);
         pthread_exit(msg_count);
         return junk;
 }
@@ -263,10 +275,23 @@ destroy_test_registry()
 
 
 int
-main(void)
+main(int argc, char *argv[])
 {
 	CU_pSuite smq_suite = NULL;
 	unsigned int fails = 0;
+        int c;
+        int long_test = 0;
+
+        while (-1 != (c = getopt(argc, argv, "m"))) {
+                switch(c) {
+                case 'm':
+                        long_test = 1;
+                        break;
+                default:
+                        fprintf(stderr, "invalid option\n");
+                        return EXIT_FAILURE;
+                }
+        }
 
 	printf("starting tests for smq...\n");
 
@@ -294,8 +319,8 @@ main(void)
 				test_queue_ordering))
 		destroy_test_registry();
 
-	if (NULL == CU_add_test(smq_suite, "one million allocs",
-				test_million_allocs))
+	if (long_test && NULL == CU_add_test(smq_suite, "one million allocs",
+                                             test_million_allocs))
 		destroy_test_registry();
 
 	if (NULL == CU_add_test(smq_suite, "threaded smq test",
