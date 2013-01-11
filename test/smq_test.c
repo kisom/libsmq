@@ -16,6 +16,8 @@
  * ---------------------------------------------------------------------
  */
 
+
+#include <sys/time.h>
 #include <sys/types.h>
 #include <assert.h>
 #include <errno.h>
@@ -30,7 +32,33 @@
 
 #include "smq.h"
 
+
 #define SMQ_TEST_DATA           "a quick brown fox jumps over the lazy dog"
+#define SMQ_TEST_RUNS           32
+
+
+void    *pusher_run(void *);
+void    *puller_run(void *);
+
+
+static void
+ms_sleep(short ms)
+{
+        struct timespec  timeo;
+        struct timespec  unslept;
+        int              sec = 0;
+
+        if (ms >= 1000) {
+                sec = ms / 1000;
+        }
+
+        timeo.tv_sec = sec;
+        timeo.tv_nsec = (ms % 1000) * 1000;
+        while (0 != nanosleep((const struct timespec *)&timeo, &unslept)) {
+                timeo = unslept;
+        }
+}
+
 
 static void
 test_simple_smq(void)
@@ -54,9 +82,8 @@ test_simple_smq(void)
 	message = smq_dequeue(msgq);
 	CU_ASSERT(NULL != message);
 	CU_ASSERT(message->data_len == strlen(SMQ_TEST_DATA));
-	CU_ASSERT(0 ==
-		  (strncmp
-		   (message->data, SMQ_TEST_DATA, strlen(SMQ_TEST_DATA))));
+	CU_ASSERT(0 == (strncmp(message->data, SMQ_TEST_DATA, 
+                                strlen(SMQ_TEST_DATA))));
 
 	CU_ASSERT(0 == smq_msg_destroy(message, SMQ_DESTROY_ALL));
 
@@ -76,6 +103,7 @@ test_simple_smq(void)
 	}
 	CU_ASSERT(0 == retval);
 }
+
 
 static void
 test_queue_ordering(void)
@@ -115,6 +143,8 @@ test_queue_ordering(void)
 	CU_ASSERT(0 == smq_destroy(msgq));
 }
 
+
+/*
 static void
 test_million_allocs(void)
 {
@@ -123,6 +153,131 @@ test_million_allocs(void)
 	for (i = 0; i < 1000000; i++)
 		test_simple_smq();
 }
+*/
+
+
+static void
+test_threaded_smq(void)
+{
+        struct smq      *msgq;
+        pthread_t        pusher_thd;
+        pthread_t        puller_thd;
+        void            *thread_res;
+        int              status;
+
+        msgq = smq_create();
+        CU_ASSERT(NULL != msgq);
+
+        status = pthread_create(&pusher_thd, NULL, pusher_run, (void *)msgq);
+        CU_ASSERT(0 == status);
+        status = pthread_create(&puller_thd, NULL, puller_run, (void *)msgq);
+        CU_ASSERT(0 == status);
+
+        status = pthread_join(pusher_thd, &thread_res);
+        perror("pusher_thd");
+        CU_ASSERT(0 == status);
+        CU_ASSERT(NULL != thread_res);
+        CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+
+        status = pthread_join(puller_thd, &thread_res);
+        perror("puller_thd");
+        CU_ASSERT(0 == status);
+        CU_ASSERT(NULL != thread_res);
+        CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+
+        printf("%u messages on the queue\n", (unsigned int)smq_len(msgq));
+        printf("destroying message queue\n");
+        CU_ASSERT(0 == smq_destroy(msgq));
+}
+
+
+void *
+pusher_run(void *args)
+{
+        void            *junk = NULL;
+        struct smq      *msgq;
+        struct smq_msg  *message;
+        int             *data;
+        int             *i;     /* int pointer so we can return this    */
+                                /*      from thread                     */
+
+        printf("[-] pusher running\n");
+        i = (int *)malloc(sizeof(*i));
+        if (NULL == i)
+                pthread_exit(NULL);
+
+        msgq = (struct smq *)args;
+        printf("^");
+        for (*i = 0; *i < SMQ_TEST_RUNS; (*i)++) {
+                printf("1.");
+                fflush(stdout);
+                data = (int *)malloc(sizeof(i));
+                if (NULL == data) {
+                        printf("1!a");
+                        fflush(stdout);
+                        pthread_exit(i);
+                }
+                *data = *i;
+                message = smq_msg_create((void *)data, sizeof(*data));
+                if (NULL == message) {
+                        printf("1!m");
+                        fflush(stdout);
+                        free(data);
+                        pthread_exit(i);
+                } else {
+                        while (0 != smq_enqueue(msgq, message)) {
+                                printf("1!e");
+                                fflush(stdout);
+                                ms_sleep(25);
+                        }
+                }
+                printf("1+");
+                fflush(stdout);
+        }
+        pthread_exit(i);
+        return junk;
+}
+
+
+void *
+puller_run(void *args)
+{
+        struct smq      *msgq;
+        struct smq_msg  *message;
+        void            *junk;
+        int             *msg_count;
+
+        printf("[-] puller running\n");
+        msg_count = (int *)malloc(sizeof(*msg_count));
+        if (NULL == msg_count)
+                pthread_exit(NULL);
+
+        *msg_count = 0;
+        msgq = (struct smq *)args;
+        while (1) {
+                message = smq_dequeue(msgq);
+                if (NULL == message) {
+                        break;
+                }  else if (message->data == NULL) {
+                        printf("2!");
+                        fflush(stdout);
+                        break;
+                }
+                if (*(int *)message->data != *msg_count)
+                        printf("2?");
+                if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL)) {
+                        printf("2!");
+                        fflush(stdout);
+                        pthread_exit(msg_count);
+                }
+                (*msg_count)++;
+                if (SMQ_TEST_RUNS == *msg_count)
+                        break;
+        }
+        pthread_exit(msg_count);
+        return junk;
+}
+
 
 /*
  * suite set up functions
@@ -139,12 +294,14 @@ cleanup_smq_test()
 	return 0;
 }
 
+
 void
 destroy_test_registry()
 {
 	CU_cleanup_registry();
 	exit(CU_get_error());
 }
+
 
 int
 main(void)
@@ -178,8 +335,14 @@ main(void)
 				test_queue_ordering))
 		destroy_test_registry();
 
+/*
+ *      commenting out code for sem debug
 	if (NULL == CU_add_test(smq_suite, "one million allocs",
 				test_million_allocs))
+		destroy_test_registry();
+ */
+	if (NULL == CU_add_test(smq_suite, "threaded smq test",
+				test_threaded_smq))
 		destroy_test_registry();
 
 	CU_basic_set_mode(CU_BRM_VERBOSE);
