@@ -34,36 +34,25 @@
 #define SMQ_BLOCKING            1
 #define SMQ_NONBLOCKING         0
 
+typedef struct _smq *            smq;
+
 
 struct smq_msg {
 	void                    *data;
 	size_t                   data_len;
 };
 
-struct smq_entry {
-	void                    *data;
-	size_t                   data_len;
-        TAILQ_ENTRY(smq_entry)   entries;
-};
-TAILQ_HEAD(tq_msg, smq_entry);
 
-struct smq {
-	struct tq_msg           *queue;
-	size_t                   queue_len;
-	sem_t                    sem;
-        struct timeval           timeo;
-        size_t                   refs;
-};
+smq              smq_create(void);
+int              smq_send(smq, struct smq_msg *);
+struct smq_msg  *smq_receive(smq);
+int              smq_destroy(smq);
+size_t           smq_len(smq);
+void             smq_setblocking(smq);
+void             smq_setnonblocking(smq);
 
-
-struct smq                      *smq_create(void);
-int                              smq_enqueue(struct smq *, struct smq_msg *);
-struct smq_msg                  *smq_dequeue(struct smq *);
-int                              smq_destroy(struct smq *);
-size_t                           smq_len(struct smq *);
-
-struct smq_msg                  *smq_msg_create(void *, size_t);
-int                              smq_msg_destroy(struct smq_msg *, int);
+struct smq_msg  *smq_msg_create(void *, size_t);
+int              smq_msg_destroy(struct smq_msg *, int);
 
 
 #endif

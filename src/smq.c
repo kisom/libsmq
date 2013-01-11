@@ -28,8 +28,26 @@
 #include "smq.h"
 
 
-static int lock_queue(struct smq *, int);
-static int unlock_queue(struct smq *);
+struct smq_entry {
+	void                    *data;
+	size_t                   data_len;
+        TAILQ_ENTRY(smq_entry)   entries;
+};
+TAILQ_HEAD(tq_msg, smq_entry);
+
+struct _smq {
+	struct tq_msg           *queue;
+	size_t                   queue_len;
+	sem_t                   *sem;
+        struct timeval           timeo;
+        size_t                   refs;
+        int                      blocking;
+};
+
+
+static int lock_queue(smq);
+static int unlock_queue(smq);
+static int queue_locked(smq);
 static struct smq_msg *smq_entry_to_msg(struct smq_entry *);
 static struct smq_entry *msg_to_smq_entry(struct smq_msg *);
 
@@ -37,23 +55,26 @@ static struct smq_entry *msg_to_smq_entry(struct smq_msg *);
 /*
  * smq_create initialises and returns a new, empty message queue.
  */
-struct smq *
+smq
 smq_create()
 {
-	struct smq *queue;
+	smq queue;
 	int sem_error = -1;
 
 	queue = NULL;
-	queue = (struct smq *)malloc(sizeof(struct smq));
+	queue = (smq)malloc(sizeof(struct _smq));
 	if (NULL == queue)
 		return NULL;
+        if (NULL == (queue->sem = (sem_t *)malloc(sizeof(sem_t))))
+                return NULL;
 	queue->queue = (struct tq_msg *)malloc(sizeof(struct tq_msg));
 	if (NULL != queue->queue) {
 		TAILQ_INIT(queue->queue);
 		queue->queue_len = 0;
                 queue->refs++;
-                queue->timeo.tv_sec = 30;
-		sem_error = sem_init(&queue->sem, 0, 0);
+                queue->timeo.tv_sec = 1;
+                queue->timeo.tv_usec = 500000;
+		sem_error = sem_init(queue->sem, 0, 0);
                 if (0 == sem_error) {
                         sem_error = unlock_queue(queue);
                 }
@@ -70,11 +91,11 @@ smq_create()
 
 
 /*
- * smq_enqueue adds a new message to the queue. The message structure will
+ * smq_send adds a new message to the queue. The message structure will
  * be freed if the message was successfully added to the queue.
  */
 int
-smq_enqueue(struct smq *queue, struct smq_msg *message)
+smq_send(smq queue, struct smq_msg *message)
 {
 	struct smq_entry        *entry;
         int                      retval;
@@ -84,43 +105,43 @@ smq_enqueue(struct smq *queue, struct smq_msg *message)
 
 	entry = msg_to_smq_entry(message);
 	if (entry == NULL) {
-                printf("[!] NULL entry!\n");
 		return -1;
         }
 
-        retval = lock_queue(queue, SMQ_BLOCKING);
+        retval = lock_queue(queue);
 	if (0 == retval) {
 		TAILQ_INSERT_TAIL(queue->queue, entry, entries);
 		queue->queue_len++;
 		free(message);
 		return unlock_queue(queue);
 	}
-        printf("[!] couldn't lock queue: %d\n", retval);
-        perror("lock_queue");
 	return -1;
 }
 
 
 /*
- * smq_dequeue retrieves the next message from the queue.
+ * smq_receive retrieves the next message from the queue.
  */
 struct smq_msg *
-smq_dequeue(struct smq *queue)
+smq_receive(smq queue)
 {
 	struct smq_msg *message = NULL;
 	struct smq_entry *entry = NULL;
 
         if (NULL == queue)
                 return NULL;
-	if (0 == lock_queue(queue, SMQ_BLOCKING)) {
+	if (0 == lock_queue(queue)) {
 		entry = TAILQ_FIRST(queue->queue);
 		if (NULL != entry) {
 			message = smq_entry_to_msg(entry);
 			TAILQ_REMOVE(queue->queue, entry, entries);
 			free(entry);
 			unlock_queue(queue);
+                        queue->queue_len--;
 		}
 	}
+        if (queue_locked(queue))
+                unlock_queue(queue);
 	return message;
 }
 
@@ -130,7 +151,7 @@ smq_dequeue(struct smq *queue)
  * messages are fully destroyed.
  */
 int
-smq_destroy(struct smq *queue)
+smq_destroy(smq queue)
 {
 	struct smq_entry *entry;
 	int retval;
@@ -138,7 +159,7 @@ smq_destroy(struct smq *queue)
         if (NULL == queue)
                 return 0;
 
-	if (0 != (retval = (lock_queue(queue, SMQ_BLOCKING)))) {
+	if (0 != (retval = (lock_queue(queue)))) {
 		return retval;
 	}
         queue->refs--;
@@ -156,7 +177,8 @@ smq_destroy(struct smq *queue)
 	free(queue->queue);
 	if (0 != (retval = (unlock_queue(queue))))
 		return retval;
-        retval = sem_destroy(&queue->sem);
+        retval = sem_destroy(queue->sem);
+        free(queue->sem);
 	free(queue);
 	return 0;
 }
@@ -166,7 +188,7 @@ smq_destroy(struct smq *queue)
  * smq_len returns the number of messages in the queue.
  */
 size_t
-smq_len(struct smq * queue)
+smq_len(smq queue)
 {
 	if (NULL == queue) {
 		return 0;
@@ -179,8 +201,7 @@ smq_len(struct smq * queue)
 /*
  * msg_create creates a new message structure for passing into a message queue.
  */
-struct smq_msg
-*
+struct smq_msg *
 smq_msg_create(void *message_data, size_t message_len)
 {
 	struct smq_msg *message;
@@ -213,10 +234,31 @@ smq_msg_destroy(struct smq_msg *message, int opts)
 
 
 /*
- * smq_entry_to_msg takes a smq_entry and returns a smq_msg from it.
+ * smq_setblocking tells the queue to block while trying to acquire a
+ * lock.
  */
-struct smq_msg
-*
+void
+smq_setblocking(smq queue)
+{
+        queue->blocking = SMQ_BLOCKING;
+}
+
+
+/*
+ * smq_setnonblocking tells the queue to use a timeout when trying to
+ * acquire a lock.
+ */
+void
+smq_setnonblocking(smq queue)
+{
+        queue->blocking = SMQ_NONBLOCKING;
+}
+
+
+/*
+ * smq_entry_to_msg takes a smq_entry and returns a struct smq_msg *from it.
+ */
+struct smq_msg *
 smq_entry_to_msg(struct smq_entry *entry)
 {
 	struct smq_msg *message;
@@ -233,7 +275,7 @@ smq_entry_to_msg(struct smq_entry *entry)
 
 
 /*
- * msg_to_smq_entry converts a smq_msg to a smq_entry.
+ * msg_to_smq_entry converts a struct smq_msg *to a smq_entry.
  */
 struct smq_entry *
 msg_to_smq_entry(struct smq_msg *message)
@@ -256,7 +298,7 @@ msg_to_smq_entry(struct smq_msg *message)
  * to 1, lock_queue will block until the mutex is locked.
  */
 int
-lock_queue(struct smq *queue, int doblock)
+lock_queue(smq queue)
 {
         struct timeval   ts;
         int              retval;
@@ -264,10 +306,13 @@ lock_queue(struct smq *queue, int doblock)
         ts.tv_sec = queue->timeo.tv_sec;
         ts.tv_usec = queue->timeo.tv_usec;
 
-        retval = sem_trywait(&queue->sem);
-        if ((-1 == retval) && (SMQ_BLOCKING == doblock)) {
+        if (SMQ_BLOCKING == queue->blocking) {
+                return sem_wait(queue->sem);
+        }
+        retval = sem_trywait(queue->sem);
+        if (-1 == retval) {
                 select(0, NULL, NULL, NULL, &ts);
-                return sem_trywait(&queue->sem);
+                return sem_trywait(queue->sem);
         }
         return retval;
 }
@@ -277,14 +322,25 @@ lock_queue(struct smq *queue, int doblock)
  * release the lock on a queue. only unlocks if queue is locked.
  */
 int
-unlock_queue(struct smq *queue)
+unlock_queue(smq queue)
 {
-        int      retval = 0;
-        int      sval = 0;       /* current semaphore value */
+        if (queue_locked(queue))
+	        return sem_post(queue->sem);
+        return 0;
+}
 
-        if (0 != (retval = sem_getvalue(&queue->sem, &sval)))
+
+/*
+ * returns 1 if the queue is locked, and 0 if it is unlocked.
+ */
+static int
+queue_locked(smq queue)
+{
+        int     retval;
+        int     semval;
+
+        retval = sem_getvalue(queue->sem, &semval);
+        if (-1 == retval)
                 return retval;
-        if (sval > 0)
-                return 0;
-	return sem_post(&queue->sem);
+        return semval == 0;
 }
