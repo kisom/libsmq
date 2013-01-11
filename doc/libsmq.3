@@ -63,7 +63,9 @@ allocated and initialised.
 New messages are added with
 .Ic smq_send .
 The pointer in the message struct is stored in the queue; it should not
-be freed until the message has been retrieved.
+be freed until the message has been retrieved. In addition, the function
+will destroy the message container when it is done -- it is safe to
+discard the message a successful send.
 Messages can be pulled from the the queue with
 .Ic smq_receive .
 The number of messages currently in the queue can be determined with
@@ -73,6 +75,20 @@ The timeout for waiting on a semaphore can be changed with
 which takes a
 .Ic struct timeval * --
 this is defined in sys/time.h.
+Messages may be created by passing a pointer to the data and the length
+of the data to
+.Ic smq_msg_create .
+The returned message (as well as messages returned from 
+.Ic smq_receive )
+.Sy must
+be destroyed with
+.Ic smq_msg_destroy .
+This takes an option; currently, either SMQ_DESTROY_ALL or
+SMQ_CONTAINER_ONLY. The SMQ_DESTROY_ALL destroys both the message
+container and the pointer to the data in it; use this only when the message
+has been successfully received and any relevant data copied out as
+required.
+
 .Sh RETURN VALUES
 .Ic smq_create
 returns an initialised message queue or NULL if one could not be
