@@ -42,8 +42,9 @@ struct smq_msg {
 smq              smq_create(void);
 int              smq_send(smq, struct smq_msg *);
 struct smq_msg  *smq_receive(smq);
-int              smq_destroy(smq);
 size_t           smq_len(smq);
+void             smq_settimeout(smq, struct timeval *);
+int              smq_destroy(smq);
 
 struct smq_msg  *smq_msg_create(void *, size_t);
 int              smq_msg_destroy(struct smq_msg *, int);

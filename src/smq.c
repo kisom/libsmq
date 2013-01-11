@@ -197,6 +197,20 @@ smq_len(smq queue)
 
 
 /*
+ * smq_settimeout sets the queue's timeout to the new timeval.
+ */
+void
+smq_settimeout(smq queue, struct timeval *timeo)
+{
+        if (NULL == timeo)
+                return;
+        queue->timeo.tv_sec = timeo->tv_sec;
+        queue->timeo.tv_usec = timeo->tv_usec;
+        return;
+}
+
+
+/*
  * msg_create creates a new message structure for passing into a message queue.
  */
 struct smq_msg *
