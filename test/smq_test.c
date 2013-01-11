@@ -63,7 +63,7 @@ ms_sleep(short ms)
 static void
 test_simple_smq(void)
 {
-	struct smq *msgq;
+	smq msgq;
 	struct smq_msg *message;
 	char *msg_data;
 	int retval = 0;
@@ -77,12 +77,12 @@ test_simple_smq(void)
 	message = smq_msg_create(msg_data, strlen(msg_data));
 	CU_ASSERT(NULL != message);
 
-	CU_ASSERT(0 == smq_enqueue(msgq, message));
+	CU_ASSERT(0 == smq_send(msgq, message));
 
-	message = smq_dequeue(msgq);
+	message = smq_receive(msgq);
 	CU_ASSERT(NULL != message);
 	CU_ASSERT(message->data_len == strlen(SMQ_TEST_DATA));
-	CU_ASSERT(0 == (strncmp(message->data, SMQ_TEST_DATA, 
+	CU_ASSERT(0 == (strncmp(message->data, SMQ_TEST_DATA,
                                 strlen(SMQ_TEST_DATA))));
 
 	CU_ASSERT(0 == smq_msg_destroy(message, SMQ_DESTROY_ALL));
@@ -108,7 +108,7 @@ test_simple_smq(void)
 static void
 test_queue_ordering(void)
 {
-	struct smq *msgq;
+	smq msgq;
 	struct smq_msg *message;
 	int origin;
 	int *data;
@@ -119,22 +119,22 @@ test_queue_ordering(void)
 	origin = 2;
 	memcpy(data, &origin, sizeof(origin));
 	message = smq_msg_create(data, sizeof(origin));
-	CU_ASSERT(0 == smq_enqueue(msgq, message));
+	CU_ASSERT(0 == smq_send(msgq, message));
 
 	data = (int *)malloc(sizeof(int));
 	CU_ASSERT(NULL != data);
 	origin = 1;
 	memcpy(data, &origin, sizeof(origin));
 	message = smq_msg_create(data, sizeof(origin));
-	CU_ASSERT(0 == smq_enqueue(msgq, message));
+	CU_ASSERT(0 == smq_send(msgq, message));
 
-	message = smq_dequeue(msgq);
+	message = smq_receive(msgq);
 	CU_ASSERT(NULL != message);
 	CU_ASSERT(message->data_len == sizeof(origin));
 	CU_ASSERT(2 == *((int *)message->data));
 	CU_ASSERT(0 == smq_msg_destroy(message, SMQ_DESTROY_ALL));
 
-	message = smq_dequeue(msgq);
+	message = smq_receive(msgq);
 	CU_ASSERT(NULL != message);
 	CU_ASSERT(message->data_len == sizeof(origin));
 	CU_ASSERT(1 == *((int *)message->data));
@@ -144,7 +144,6 @@ test_queue_ordering(void)
 }
 
 
-/*
 static void
 test_million_allocs(void)
 {
@@ -153,13 +152,12 @@ test_million_allocs(void)
 	for (i = 0; i < 1000000; i++)
 		test_simple_smq();
 }
-*/
 
 
 static void
 test_threaded_smq(void)
 {
-        struct smq      *msgq;
+        smq              msgq;
         pthread_t        pusher_thd;
         pthread_t        puller_thd;
         void            *thread_res;
@@ -168,25 +166,23 @@ test_threaded_smq(void)
         msgq = smq_create();
         CU_ASSERT(NULL != msgq);
 
+        smq_setblocking(msgq);
         status = pthread_create(&pusher_thd, NULL, pusher_run, (void *)msgq);
         CU_ASSERT(0 == status);
         status = pthread_create(&puller_thd, NULL, puller_run, (void *)msgq);
         CU_ASSERT(0 == status);
 
         status = pthread_join(pusher_thd, &thread_res);
-        perror("pusher_thd");
         CU_ASSERT(0 == status);
         CU_ASSERT(NULL != thread_res);
         CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
 
         status = pthread_join(puller_thd, &thread_res);
-        perror("puller_thd");
         CU_ASSERT(0 == status);
         CU_ASSERT(NULL != thread_res);
         CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
 
-        printf("%u messages on the queue\n", (unsigned int)smq_len(msgq));
-        printf("destroying message queue\n");
+        CU_ASSERT(0 == smq_len(msgq));
         CU_ASSERT(0 == smq_destroy(msgq));
 }
 
@@ -195,44 +191,30 @@ void *
 pusher_run(void *args)
 {
         void            *junk = NULL;
-        struct smq      *msgq;
+        smq              msgq;
         struct smq_msg  *message;
         int             *data;
         int             *i;     /* int pointer so we can return this    */
                                 /*      from thread                     */
 
-        printf("[-] pusher running\n");
         i = (int *)malloc(sizeof(*i));
         if (NULL == i)
                 pthread_exit(NULL);
 
-        msgq = (struct smq *)args;
-        printf("^");
+        msgq = (smq)args;
         for (*i = 0; *i < SMQ_TEST_RUNS; (*i)++) {
-                printf("1.");
-                fflush(stdout);
                 data = (int *)malloc(sizeof(i));
-                if (NULL == data) {
-                        printf("1!a");
-                        fflush(stdout);
+                if (NULL == data)
                         pthread_exit(i);
-                }
                 *data = *i;
                 message = smq_msg_create((void *)data, sizeof(*data));
                 if (NULL == message) {
-                        printf("1!m");
-                        fflush(stdout);
                         free(data);
                         pthread_exit(i);
                 } else {
-                        while (0 != smq_enqueue(msgq, message)) {
-                                printf("1!e");
-                                fflush(stdout);
+                        while (0 != smq_send(msgq, message))
                                 ms_sleep(25);
-                        }
                 }
-                printf("1+");
-                fflush(stdout);
         }
         pthread_exit(i);
         return junk;
@@ -242,34 +224,28 @@ pusher_run(void *args)
 void *
 puller_run(void *args)
 {
-        struct smq      *msgq;
+        smq              msgq;
         struct smq_msg  *message;
         void            *junk;
         int             *msg_count;
 
-        printf("[-] puller running\n");
         msg_count = (int *)malloc(sizeof(*msg_count));
-        if (NULL == msg_count)
+        if (NULL == msg_count) {
                 pthread_exit(NULL);
+        }
 
         *msg_count = 0;
-        msgq = (struct smq *)args;
+        msgq = (smq)args;
         while (1) {
-                message = smq_dequeue(msgq);
-                if (NULL == message) {
-                        break;
-                }  else if (message->data == NULL) {
-                        printf("2!");
-                        fflush(stdout);
-                        break;
-                }
-                if (*(int *)message->data != *msg_count)
+                message = smq_receive(msgq);
+                if (NULL == message)
+                        continue;
+                else if (message->data == NULL)
+                        continue;
+                else if (*(int *)message->data != *msg_count)
                         printf("2?");
-                if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL)) {
-                        printf("2!");
-                        fflush(stdout);
+                else if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL))
                         pthread_exit(msg_count);
-                }
                 (*msg_count)++;
                 if (SMQ_TEST_RUNS == *msg_count)
                         break;
@@ -335,12 +311,10 @@ main(void)
 				test_queue_ordering))
 		destroy_test_registry();
 
-/*
- *      commenting out code for sem debug
 	if (NULL == CU_add_test(smq_suite, "one million allocs",
 				test_million_allocs))
 		destroy_test_registry();
- */
+
 	if (NULL == CU_add_test(smq_suite, "threaded smq test",
 				test_threaded_smq))
 		destroy_test_registry();
