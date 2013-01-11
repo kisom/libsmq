@@ -53,7 +53,10 @@ This manual is for libsmq (version @value{VERSION}, @value{UPDATED}).
 
 @menu
 * A Quick Introduction::
+* libsmq Functions::
 * Manual Copyright::
+* Threading Considerations::
+* Function Reference::
 * Index::
 @end menu
 
@@ -61,38 +64,55 @@ This manual is for libsmq (version @value{VERSION}, @value{UPDATED}).
 @node A Quick Introduction
 @chapter A Quick Introduction
 
-@pindex intro
-@cindex introduction to @command{libsmq}
-libsmq provides simple, thread-safe message queues (LIFO buffers)
-modeled after Go's channels. Messages contain an array of @code{uint8_t}
-values, a sequence number, and a variable indicating the size of the
-data array. A message struct is defined as:
+@pindex overview
+@cindex introduction
+libsmq provides simple, thread-aware message queues (LIFO buffers) inspired by
+Go's channels. Messages contain a pointer to some arbitrary data and contain
+the length of the data. A message struct is defined as:
 
-@verbatim
-struct s_message {
-        uint8_t                 *msg;
-        size_t                   msglen;
-        size_t                   seq;
-};
-@end verbatim
+@example
+struct smq_msg @{
+        void    *data;
+        size_t   datalen;
+@};
+@end example
 
-A small part of a sample program might look like:
+A queue stores an arbitrary number of messages. New message queues are created
+with the smq_create function. This ensures that all resources for the queue
+are properly allocated and initialised.  It is critical that all queues be
+created with smq_create and destroyed with smq_destroy! New messages are added
+with smq_send.  The pointer in the message struct is stored in the queue; it
+should not be freed until the message has been retrieved.  Messages can be
+pulled from the the queue with smq_receive.  The number of messages currently
+in the queue can be determined with smq_len.  The timeout for waiting on a
+semaphore can be changed with smq_settimeout, which takes a
+@var{struct timeval *} -- this is defined in sys/time.h.
 
-@verbatim
-struct s_msgqueue       *msgq;
-struct s_message        *msg;
-char                    *buf;
-size_t                   buflen;
+Part of a sample program might look like:
+@cindex example
+@example
+smq              msgq;
+struct smq_msg  *msg;
+char            *buf;
+size_t           buflen;
 
-msgq = msgqueue_create();
+msgq = smq_create();
 /*
  * buf is filled with some data, and buflen is set to the
  * length of this data.
  */
 
 /* push buf into the queue */
-if (0 != msgqueue_push(msgq, (uint8_t *)buf, buflen))
+msg = smq_msg_create((void *)buf, buflen);
+if (0 != msgqueue_send(msgq, msg))
         warn("push failed");
+
+/*
+ * If no errors were reported, the message container is deallocated
+ * while the data itself is not. The pointer to the data is stored
+ * in the queue, and should not be freed until the message is
+ * received.
+ */
 
 /*
  * retrieve a message; assume buf has been allocated memory
@@ -100,15 +120,326 @@ if (0 != msgqueue_push(msgq, (uint8_t *)buf, buflen))
  * ensure msg->msglen is less than buflen (assuming buflen
  * contains the size of buf).
  */
-if (NULL == (msg = msgqueue_pop(msgq))) {
+msg = smq_receive(queue);
+if (NULL == msg) @{
         warn("no message");
-} else {
-        memcpy(buf, msg->msg, msg->msglen);
+@} else @{
+        memcpy(buf, msg->data, msg->datalen);
         printf("[+] message: %s0, buf);
-        free(msg);
-        msg = NULL;
-}
-@end verbatim
+        smq_msg_destroy(msg, SMQ_DESTROY_ALL);
+@}
+
+@end example
+
+For the rest of this manual, we will use the variable @var{msgq} to
+refer to a message queue, and the variable @var{message} to refer to
+messages.  Note that message queues are independent and thread-aware; a
+program may use more than one message queue, and may use a message queue
+across threads safely.
+
+For a complete test program using the library, see the @file{test/smq_test.c}
+source.
+
+@cindex obtaining the source
+@section Obtaining the Source Code
+The source code is available on the project's
+@url{https://bitbucket.org/kisom/libsmq, Bitbucket page} or its
+@url{https://github.com/kisom/libsmq, Github page}.
+
+@cindex installing
+@section Installing @code{libsmq}
+@code{libsmq} uses the standard GNU autotools to build and install the source
+code. If you have a release tarball, simply unpack it and run
+@kbd{./configure && make && make install}. To install to your home directory,
+pass the @kbd{--prefix=$@{HOME@}} flag to @code{./configure}. If you have
+grabbed the source code from @code{git}, you can run
+@code{./autobuild && make install}. This has the added advantage of running
+the unit tests as well. The unit tests may be run using @code{make check}.
+
+@node libsmq Functions
+@chapter @command{libsmq} Functions
+
+@cindex lifecycle
+@section The Message Queue Lifecyle
+The message queue begins its life when the @code{smq_create} function is
+invoked, returning an @code{smq} object; the function ensures that the queue
+is properly initialised. If it could not initialise a new message queue
+for whatever reason, it will return a NULL value. Once the queue is no
+longer needed, it @emph{must} be destroyed using @code{smq_destroy}. This
+ensures that all resources used by the queue are properly freed and returned
+to the system. Part of the destruction process is the destruction of all
+the messages stored in the queue; this manual will presently cover how
+messages are handled (and memory management of these messages).
+
+For queues that might be shared between threads, the @code{smq_dup} function
+is provided to duplicate the queue (in effect, it just increases the
+reference count). A thread can then safely call smq_destroy on a queue to
+mark it as no longer in use. If the queue could not be locked, @code{smq_dup}
+will return an error value - the caller should either make an attempt to
+increase the reference count again, fail, or exit without destroying the
+queue.
+
+@strong{Important:} ensure that for every @code{smq_create}, there is a
+matching @code{smq_destroy} -- otherwise your code will leak memory.
+
+A thread using the queue might look something like 
+
+@cindex thread example
+@example
+void *
+worker_thread(void *args)
+@{
+        smq     msgq;
+        /* ... */
+
+        /*
+         * This assumes the caller sent the queue directly as the
+         * argument to the thread.
+         */
+        msgq = (smq)args;
+        if (NULL == msgq)
+                pthread_exit(NULL);
+        else if (smq_dup(msgq))
+                pthread_exit(NULL);
+
+        /* work occurs */
+
+        smq_destroy(msgq);
+        pthread_exit(...);
+        return NULL;
+@}
+@end example
+
+@cindex messages
+@section Messages: Sending and Receiving Data
+@cindex struct smq_msg
+@cindex smq_msg_create
+The basic unit of the message queue is the @var{struct smq_msg}. Pointers
+to these structures are what are sent to and received from the message queue.
+Creating a new message is done with the @code{smq_msg_create} function, which
+takes two arguments:
+
+@itemize @bullet
+@item
+@var{void *data} - a pointer to some type of data in memory, and
+
+@item
+@var{size_t len} - the size of the data being stored.
+@end itemize
+
+@cindex smq_msg_destroy
+The pointer to @var{data} is stored in the queue, so it must not be freed
+until it has been received from the queue. A message should be destroyed
+when it is done; this is accomplished with the @code{smq_msg_destroy}
+function. This takes two arguments as well:
+
+@itemize @bullet
+@item
+@var{struct smq_msg *message} -- the message to be destroyed, and
+
+@item
+@var{int options} -- the options described what is to be done.
+@end itemize
+
+@cindex SMQ_DESTROY_ALL
+@cindex SMQ_CONTAINER_ONLY
+The two options supported are @var{SMQ_DESTROY_ALL} and
+@var{SMQ_CONTAINER_ONLY}. @var{SMQ_DESTROY_ALL} destroys both the message
+and the data it contains, while @var{SMQ_CONTAINER_ONLY} only destroys the
+message container. Use @var{SMQ_CONTAINER_ONLY} when the data needs to be
+retained.
+
+@cindex smq_send
+Messages are sent to the queue using @code{smq_send}; for example:
+
+@example
+        message = smq_msg_create(buf, buf_len);
+        if (smq_send(msgq, message))
+                warnx("message was not stored!");
+@end example
+
+If @code{smq_send} was successful, it will destroy the message container; after
+a successful send, the message may be discarded and certainly should not be
+afterwards.
+
+@cindex smq_receive
+Messages may be retrieved using @code{smq_receive}:
+@example
+        /*
+         * We will retrieve an integer that was sent to the message
+         * queue, and use asserts to show the checking that should
+         * be done on received messages.
+         */
+        int     msgdata;
+
+        message = smq_receive(msgq);
+
+        /* a NULL message indicates there was nothing on the queue */
+        assert(NULL != message);
+
+        /* ensure the message is what we think it is */
+        assert(sizeof msgdata == message->datalen);
+
+        /* now we can use the message */
+        msgdata = *message->data;
+
+        /* the data has been copied out, and the message is destroyed */
+        assert(0 == smq_msg_destroy(message, SMQ_DESTROY_ALL);
+
+        printf("[+] received %d from the message queue.\n", msgdata);
+@end example
+
+@cindex smq_len
+@cindex checking queue for messages
+We can determine if there are any messages on the queue with
+@code{smq_len}:
+
+@example
+        if (smq_len(msgq)) @{
+                /* receive the message */
+        @}
+@end example
+
+@cindex timeouts
+The message queues, by default, use a 10ms timeout when trying to acquire
+locks. The timeout can be changed by passing a pointer to a
+@var{struct timeval} to the @code{smq_settimeout} function:
+
+@example
+        struct timeval  timeo;
+
+        /* set a 1s timeout on the queue */
+        timeo.tv_sec = 1;
+        timeo.tv_usec = 0;
+        if (smq_settimeout(msgq, &timeo))
+                warnx("failed to set message queue timeout.");
+
+        /* set a 250ms timeout */
+        timeo.tv_sec = 0;
+        timeo.tv_usec = 250000; /* 250ms * 1000 (µs / ms) */
+        if (smq_settimeout(msgq, &timeo))
+                warnx("failed to set message queue timeout.");
+@end example
+
+@cindex threading
+@node Threading Considerations
+@chapter Threading Considerations
+The message queues may be safely used across threads (and a program may use
+more than one message queue) -- the message queues are @emph{thread-aware}
+but not @emph{thread-safe}. No global state is saved in the library; an
+@var{smq} value is self-contained. The program should observe the following
+guidelines; note that these apply to @emph{all} threads using a message queue,
+including the main thread:
+
+@enumerate
+@item
+Every thread should either have called @code{smq_create} or @code{smq_dup}
+before using the queue. The originating thread (e.g. the main thread)
+@emph{must} call @code{smq_create}, and any threads that are passed the
+message queue @emph{must} call @code{smq_dup} to mark the queue as in use.
+
+@item
+Every thread should call @code{smq_destroy} when the queue is no longer in
+use; this ensures that resources are properly freed, but only when no threads
+are using the queue anymore.
+
+@item
+If @code{smq_destroy} is not called before the thread exits, the program
+risks resource leakage (although, once the program exits, all resources
+@emph{should} be freed automatically).
+@end enumerate
+
+@cindex function reference
+@node Function Reference
+@chapter Function Reference
+
+@pindex smq_create
+@example
+smq
+smq_create(void);
+@end example
+
+@code{smq_create} is used to create and initialise a new message queue. It
+returns an @var{smq} value if it is successful, or a @var{NULL} value
+otherwise.
+
+@pindex smq_send
+@example
+int
+smq_send(smq, struct smq_msg *);
+@end example
+
+@code{smq_send} is used to send new messages to the message queue. It returns
+0 on success, and -1 on failure. The message was successfully sent, the
+container is destroyed automatically and may be discarded.
+
+@pindex smq_receive
+@example
+struct smq_msg *
+smq_receive(smq);
+@end example
+
+@code{smq_receive} retrieves the next message from the message queue. If no
+messages are present, it will return a NULL value.
+
+@pindex smq_len
+@example
+size_t
+smq_len(smq);
+@end example
+
+@code{smq_len} returns the number of messages currently in the queue.
+
+@pindex smq_settimeout
+@example
+void
+smq_settimeout(smq, struct timeval *);
+@end example
+
+@code{smq_settimeout} changes the timeout used by the message queue when
+attempting to perform actions on the queue. It defaults to 10ms.
+
+@pindex smq_dup
+@example
+int
+smq_dup(smq);
+@end example
+
+@code{smq_dup} alerts the queue that it is being used by an additional thread;
+this ensures proper cleanup and resource deallocation.
+
+@pindex smq_destroy
+@example
+int
+smq_destroy(smq);
+@end example
+
+@code{smq_destroy} marks a message queue as no longer in use by a thread; when
+no more threads are using it, the message queue will be destroyed and its
+resources reclaimed. It returns 0 on success, and -1 on error.
+
+@pindex smq_msg_create
+@example
+struct smq_msg *
+smq_msg_create(void *, size_t);
+@end example
+
+@code{smq_msg_create} builds a new message container from the data passed
+into it. It returns a message container if it was successful, or NULL if
+an error occurred.
+
+@pindex smq_msg_destroy
+@example
+int
+smq_msg_destroy(struct smq_msg *, int);
+@end example
+
+@code{smq_msg_destroy} destroys a message container, and optionally the
+data it contains. Its behaviour is governed by the @code{int} flag passed
+in, which should be either @var{SMQ_DESTROY_ALL} or @var{SMQ_CONTAINER_ONLY}.
+@var{SMQ_DESTROY_ALL} specifies that @code{smq_msg_destroy} should destroy
+both the container and its data, while @var{SMQ_CONTAINER_ONLY} specifies
+that only the container should be destroyed.
 
 @node Manual Copyright
 @appendix Manual Copyright

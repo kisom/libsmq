@@ -29,6 +29,10 @@
 .Fa "struct timeval *timeo"
 .Fc
 .Ft int
+.Fo smq_dup
+.Fa "smq queue"
+.Fc
+.Ft int
 .Fo smq_destroy
 .Fa "smq queue"
 .Fc
@@ -60,6 +64,10 @@ function. This ensures that all resources for the queue are properly
 allocated and initialised.
 .Sy "It is critical that all queues be created with smq_create"
 .Sy "and destroyed with smq_destroy!"
+.Ic smq_dup
+increases the reference count on the message queue; this should be used
+when multiple threads are using the same queue. When a thread is finished
+with the queue, it should call smq_destroy on it.
 New messages are added with
 .Ic smq_send .
 The pointer in the message struct is stored in the queue; it should not
@@ -74,7 +82,7 @@ The timeout for waiting on a semaphore can be changed with
 .Ic smq_settimeout ,
 which takes a
 .Ic struct timeval * --
-this is defined in sys/time.h.
+this is defined in sys/time.h. By default, the timeout value is 10ms.
 Messages may be created by passing a pointer to the data and the length
 of the data to
 .Ic smq_msg_create .
