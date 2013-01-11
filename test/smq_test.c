@@ -34,13 +34,14 @@
 
 
 #define SMQ_TEST_DATA           "a quick brown fox jumps over the lazy dog"
-#define SMQ_TEST_RUNS           32
+#define SMQ_TEST_RUNS           1024
 
 
 void    *pusher_run(void *);
 void    *puller_run(void *);
 
 
+/*
 static void
 ms_sleep(short ms)
 {
@@ -58,6 +59,7 @@ ms_sleep(short ms)
                 timeo = unslept;
         }
 }
+*/
 
 
 static void
@@ -166,7 +168,6 @@ test_threaded_smq(void)
         msgq = smq_create();
         CU_ASSERT(NULL != msgq);
 
-        smq_setblocking(msgq);
         status = pthread_create(&pusher_thd, NULL, pusher_run, (void *)msgq);
         CU_ASSERT(0 == status);
         status = pthread_create(&puller_thd, NULL, puller_run, (void *)msgq);
@@ -212,8 +213,8 @@ pusher_run(void *args)
                         free(data);
                         pthread_exit(i);
                 } else {
-                        while (0 != smq_send(msgq, message))
-                                ms_sleep(25);
+                        while (0 != smq_send(msgq, message)) ;
+                                /* ms_sleep(25); */
                 }
         }
         pthread_exit(i);
@@ -243,10 +244,13 @@ puller_run(void *args)
                 else if (message->data == NULL)
                         continue;
                 else if (*(int *)message->data != *msg_count)
-                        printf("2?");
-                else if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL))
+                        printf("?%d,%d\n", *(int *)message->data, *msg_count);
+                else
+                        (*msg_count)++;
+
+                if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL))
                         pthread_exit(msg_count);
-                (*msg_count)++;
+
                 if (SMQ_TEST_RUNS == *msg_count)
                         break;
         }
