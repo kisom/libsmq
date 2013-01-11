@@ -1,4 +1,4 @@
-.Dd October 9, 2012
+.Dd January 10, 2013
 .Dt LIBSMQ 3
 .Os
 .Sh NAME
@@ -6,102 +6,107 @@
 .Nd a simple message queue library
 .Sh SYNOPSIS
 .In smq.h
-.Ft "struct s_msgqueue *"
-.Fo msgqueue_create
+.Ft smq
+.Fo smq_create
 .Fa void
 .Fc
 .Ft int
-.Fo msgqueue_enqueue
-.Fa "struct msgqueue *msgq"
-.Fa "uint8_t *msgdata"
-.Fa "size_t msgsz"
+.Fo smq_send
+.Fa "smq queue"
+.Fa "struct smq_msg *message"
 .Fc
-.Ft "struct s_message *"
-.Fo "msgqueue_dequeue"
-.Fa "struct msgqueue *msgq"
+.Ft "struct smq_msg *"
+.Fo smq_receive
+.Fa "smq queue"
+.Fc
+.Ft size_t
+.Fo smq_len
+.Fa "smq queue"
+.Fc
+.Ft void
+.Fo smq_settimeout
+.Fa "smq queue"
+.Fa "struct timeval *timeo"
 .Fc
 .Ft int
-.Fo "msgqueue_destroy"
-.Fa "struct msgqueue *msgq"
+.Fo smq_destroy
+.Fa "smq queue"
+.Fc
+.Ft "struct smq_msg"
+.Fo smq_msg_create
+.Fa "void *"
+.Fa size_t
+.Fc
+.Ft int
+.Fo smq_msg_destroy
+.Fa "struct smq_msg *message"
+.Fa "int opts"
 .Fc
 .Sh DESCRIPTION
 .Nm
-provides simple, thread-safe message queues (LIFO buffers) modeled
-after Go's channels. Messages contain an array of uint8_t values,
-a sequence number, and a variable indicating the size of the data
-array. A message struct is defined as:
+provides simple, thread-safe message queues (LIFO buffers) inspired 
+by Go's channels. Messages contain a pointer to some arbitrary data
+and contain the length of the data. A message struct is defined as:
 .Bd -literal
-struct s_message {
-        uint8_t                 *msg;
-	size_t                   msglen;
-	size_t                   seq;
+struct smq_msg {
+        void    *data;
+	size_t   datalen;
 };
 .Ed
-A queue stores an arbitrary number of messages in a standard
-.Xr queue 3
-TAILQ, a mutex, a message count, and the last sequence number assigned
-to a message.
-New messageq queues are created with the
-.Ic msgqueue_create
+A queue stores an arbitrary number of messages. New message queues
+are created with the
+.Ic smq_create 
 function. This ensures that all resources for the queue are properly
 allocated and initialised.
-.Sy It is critical that all queues be created with msgqueue_create
-.Sy and destroyed with msgqueue_destroy!
-.No
+.Sy "It is critical that all queues be created with smq_create"
+.Sy "and destroyed with smq_destroy!"
 New messages are added with
-.Ic msgqueue_push
-can be used to add a message to the queue. Messages can be pulled from
-the the queue with
-.Ic msgqueue_pop .
-The queue is defined as
-.Bd -literal
-struct s_msgqueue {
-        ...
-	size_t		nmsg;
-	size_t		lastseq;
-	struct timespec block;
-};
-.Ed
-The
-.Ic nmsg
-member contains the number of messages currently in the queue, while
-.Ic lastseq
-contains the last sequence number issued out. Messages are added with
-.Ic msgqueue_push ,
-which expects an array of
-.Ft uint8_t
-values (for storing binary data). A length is passed in so that
-messages constructed from packing structures are still properly
-copied.
-.Ic msgqueue_pop
-returns the oldest message in the queue, removing it from the list.
+.Ic smq_send .
+The pointer in the message struct is stored in the queue; it should not
+be freed until the message has been retrieved.
+Messages can be pulled from the the queue with
+.Ic smq_receive .
+The number of messages currently in the queue can be determined with
+.Ic smq_len .
+The timeout for waiting on a semaphore can be changed with
+.Ic smq_settimeout ,
+which takes a
+.Ic struct timeval * --
+this is defined in sys/time.h.
 .Sh RETURN VALUES
-.Ic msgqueue_create
+.Ic smq_create
 returns an initialised message queue or NULL if one could not be
 initialised.
-.Ic msgqueue_push
+.Ic smq_send
 and
-.Ic msgqueue_destroy
-return 0 on success, and nonzero on error. If the value is -1, then
-errno has been set; if >0, the error is due to a pthreads error, such
-as a failure to acquire a lock.
+.Ic smq_destroy
+return 0 on success, and nonzero on error. errno should contain the error
+value.
 .Sh EXAMPLES
 A small part of a sample program might look like:
 .Bd -literal
-        struct s_msgqueue       *msgq;
-        struct s_message        *msg;
-        char                    *buf;
-        size_t                   buflen;
+        smq              msgq;
+        struct smq_msg  *msg;
+        char            *buf;
+        size_t           buflen;
 
-        msgq = msgqueue_create();
+        msgq = smq_create();
         /*
          * buf is filled with some data, and buflen is set to the
          * length of this data.
          */
 
         /* push buf into the queue */
-        if (0 != msgqueue_push(msgq, (uint8_t *)buf, buflen))
+        msg = smq_msg_create((void *)buf, buflen);
+        if (0 != msgqueue_send(msgq, msg))
                 warn("push failed");
+        
+        /*
+         * If no errors were reported, the message container is deallocated
+         * while the data itself is not. The pointer to the data is stored
+         * in the queue, and should not be freed until the message is
+         * received.
+         */
 
         /*
          * retrieve a message; assume buf has been allocated memory
@@ -109,38 +114,26 @@ A small part of a sample program might look like:
          * ensure msg->msglen is less than buflen (assuming buflen
          * contains the size of buf).
          */
-        if (NULL == (msg = msgqueue_pop(msgq))) {
+        msg = smq_receive(queue);
+        if (NULL == msg) {
                 warn("no message");
         } else {
-                memcpy(buf, msg->msg, msg->msglen);
+                memcpy(buf, msg->data, msg->datalen);
                 printf("[+] message: %s\n", buf);
                 free(msg);
-                msg = NULL;
         }
 .Ed
 .Sh ERRORS
 The most typical cause for errors in the library will be a failure
-to acquire a lock; while this is technically an error, it is an
+to lock the queue; while this is technically an error, it is an
 expected error.
 .Sh STANDARDS
 .Nm
-conforms to
-.St -ansiC
-and
-.St -susv3 .
+conforms to C99 and SUSv4.
 .Sh AUTHORS
 .Nm
 was written by
 .An Kyle Isom Aq Mt kyle@tyrfingr.is .
 .Sh CAVEATS
-If you are on Linux, you are on your own. I have gotten this to compile,
-but I couldn't care less whether it runs. You won't have timedlocks
-because none of the Linux boxes I had access to had implemented
-timedlocks. There may be other gotchas.
 .Sh BUGS
-Please report bugs to the author. If the bug occurs on a Linux system,
-the author can be reached at
-.Aq Mt nobody@localhost ;
-otherwise the mail address listed in the
-.Sx AUTHOR
-section.
+Please report bugs to the author.
