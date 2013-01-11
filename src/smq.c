@@ -19,10 +19,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/time.h>
-#include <errno.h>
-#include <pthread.h>
 #include <semaphore.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "smq.h"
@@ -41,7 +38,6 @@ struct _smq {
 	sem_t                   *sem;
         struct timeval           timeo;
         size_t                   refs;
-        int                      blocking;
 };
 
 
@@ -72,8 +68,8 @@ smq_create()
 		TAILQ_INIT(queue->queue);
 		queue->queue_len = 0;
                 queue->refs++;
-                queue->timeo.tv_sec = 1;
-                queue->timeo.tv_usec = 500000;
+                queue->timeo.tv_sec = 0;
+                queue->timeo.tv_usec = 100 * 1000;
 		sem_error = sem_init(queue->sem, 0, 0);
                 if (0 == sem_error) {
                         sem_error = unlock_queue(queue);
@@ -106,6 +102,8 @@ smq_send(smq queue, struct smq_msg *message)
 	entry = msg_to_smq_entry(message);
 	if (entry == NULL) {
 		return -1;
+        } else if (entry->data == NULL) {
+                return -1;
         }
 
         retval = lock_queue(queue);
@@ -234,28 +232,6 @@ smq_msg_destroy(struct smq_msg *message, int opts)
 
 
 /*
- * smq_setblocking tells the queue to block while trying to acquire a
- * lock.
- */
-void
-smq_setblocking(smq queue)
-{
-        queue->blocking = SMQ_BLOCKING;
-}
-
-
-/*
- * smq_setnonblocking tells the queue to use a timeout when trying to
- * acquire a lock.
- */
-void
-smq_setnonblocking(smq queue)
-{
-        queue->blocking = SMQ_NONBLOCKING;
-}
-
-
-/*
  * smq_entry_to_msg takes a smq_entry and returns a struct smq_msg *from it.
  */
 struct smq_msg *
@@ -284,6 +260,8 @@ msg_to_smq_entry(struct smq_msg *message)
 
         if (NULL == message)
                 return NULL;
+        if (NULL == message->data || 0 == message->data_len)
+                return NULL;
 	entry = (struct smq_entry *)malloc(sizeof(struct smq_entry));
 	if (NULL == entry)
 		return entry;
@@ -306,9 +284,6 @@ lock_queue(smq queue)
         ts.tv_sec = queue->timeo.tv_sec;
         ts.tv_usec = queue->timeo.tv_usec;
 
-        if (SMQ_BLOCKING == queue->blocking) {
-                return sem_wait(queue->sem);
-        }
         retval = sem_trywait(queue->sem);
         if (-1 == retval) {
                 select(0, NULL, NULL, NULL, &ts);

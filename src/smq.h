@@ -30,12 +30,8 @@
 #define SMQ_CONTAINER_ONLY      0
 #define SMQ_DESTROY_ALL         1
 
-/* mutex timeout options */
-#define SMQ_BLOCKING            1
-#define SMQ_NONBLOCKING         0
 
 typedef struct _smq *            smq;
-
 
 struct smq_msg {
 	void                    *data;
@@ -48,8 +44,6 @@ int              smq_send(smq, struct smq_msg *);
 struct smq_msg  *smq_receive(smq);
 int              smq_destroy(smq);
 size_t           smq_len(smq);
-void             smq_setblocking(smq);
-void             smq_setnonblocking(smq);
 
 struct smq_msg  *smq_msg_create(void *, size_t);
 int              smq_msg_destroy(struct smq_msg *, int);
