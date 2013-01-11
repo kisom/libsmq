@@ -41,27 +41,6 @@ void    *pusher_run(void *);
 void    *puller_run(void *);
 
 
-/*
-static void
-ms_sleep(short ms)
-{
-        struct timespec  timeo;
-        struct timespec  unslept;
-        int              sec = 0;
-
-        if (ms >= 1000) {
-                sec = ms / 1000;
-        }
-
-        timeo.tv_sec = sec;
-        timeo.tv_nsec = (ms % 1000) * 1000;
-        while (0 != nanosleep((const struct timespec *)&timeo, &unslept)) {
-                timeo = unslept;
-        }
-}
-*/
-
-
 static void
 test_simple_smq(void)
 {
