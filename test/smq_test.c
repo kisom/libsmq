@@ -34,7 +34,7 @@
 
 
 #define SMQ_TEST_DATA           "a quick brown fox jumps over the lazy dog"
-#define SMQ_TEST_RUNS           10000000
+#define SMQ_TEST_RUNS           1000000
 
 
 void    *pusher_run(void *);
@@ -147,11 +147,9 @@ test_threaded_smq(void)
         msgq = smq_create();
         CU_ASSERT(NULL != msgq);
 
-        status = pthread_create(&pusher_thd, NULL, pusher_run,
-                                (void *)smq_dup(msgq));
+        status = pthread_create(&pusher_thd, NULL, pusher_run, (void *)msgq);
         CU_ASSERT(0 == status);
-        status = pthread_create(&puller_thd, NULL, puller_run,
-                                (void *)smq_dup(msgq));
+        status = pthread_create(&puller_thd, NULL, puller_run, (void *)msgq);
         CU_ASSERT(0 == status);
 
         status = pthread_join(pusher_thd, &thread_res);
@@ -162,8 +160,7 @@ test_threaded_smq(void)
 
         status = pthread_join(puller_thd, &thread_res);
         CU_ASSERT(0 == status);
-        CU_ASSERT(NULL != thread_res);
-        CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+        CU_ASSERT(NULL != thread_res && *(int *)thread_res == SMQ_TEST_RUNS);
         free(thread_res);
 
         CU_ASSERT(0 == smq_len(msgq));
@@ -174,19 +171,20 @@ test_threaded_smq(void)
 void *
 pusher_run(void *args)
 {
-        void            *junk = NULL;
         smq              msgq;
         struct smq_msg  *message;
         int             *data;
         int             *i;     /* int pointer so we can return this    */
                                 /*      from thread                     */
 
-        msgq = (smq)args;
         i = (int *)malloc(sizeof(*i));
         if (NULL == i) {
-                smq_destroy(msgq);
                 pthread_exit(NULL);
         }
+
+        msgq = (smq)args;
+        if (smq_dup(msgq))
+                pthread_exit(NULL);
 
         for (*i = 0; *i < SMQ_TEST_RUNS; (*i)++) {
                 data = (int *)malloc(sizeof(i));
@@ -207,7 +205,7 @@ pusher_run(void *args)
         }
         smq_destroy(msgq);
         pthread_exit(i);
-        return junk;
+        return NULL;
 }
 
 
@@ -216,7 +214,6 @@ puller_run(void *args)
 {
         smq              msgq;
         struct smq_msg  *message;
-        void            *junk;
         int             *msg_count;
 
         msg_count = (int *)malloc(sizeof(*msg_count));
@@ -226,6 +223,9 @@ puller_run(void *args)
 
         *msg_count = 0;
         msgq = (smq)args;
+        if (smq_dup(msgq))
+                pthread_exit(NULL);
+
         sleep(1);
         while (1) {
                 message = smq_receive(msgq);
@@ -246,7 +246,7 @@ puller_run(void *args)
         }
         smq_destroy(msgq);
         pthread_exit(msg_count);
-        return junk;
+        return NULL;
 }
 
 
@@ -280,13 +280,20 @@ main(int argc, char *argv[])
 	CU_pSuite smq_suite = NULL;
 	unsigned int fails = 0;
         int c;
-        int long_test = 0;
+        int long_test = 1;
 
-        while (-1 != (c = getopt(argc, argv, "m"))) {
+        while (-1 != (c = getopt(argc, argv, "hm"))) {
                 switch(c) {
                 case 'm':
-                        long_test = 1;
+                        long_test = 0;
                         break;
+                case 'h':
+                        fprintf(stderr, "usage: %s [-hm]\n", argv[0]);
+                        fprintf(stderr, "options:\n");
+                        fprintf(stderr, "\t-h\tdisplay this help message\n");
+                        fprintf(stderr, "\t-m\tdon't run the million alloc");
+                        fprintf(stderr, "\t\t test\n");
+                        return 0;
                 default:
                         fprintf(stderr, "invalid option\n");
                         return EXIT_FAILURE;
