@@ -211,6 +211,24 @@ smq_settimeout(smq queue, struct timeval *timeo)
 
 
 /*
+ * duplicate a message queue for use in another thread.
+ */
+smq
+smq_dup(smq queue)
+{
+        if (NULL == queue)
+                return NULL;
+        if (lock_queue(queue)) {
+                return NULL;
+        }
+        queue->refs++;
+        while (queue_locked(queue))
+                unlock_queue(queue);
+        return queue;
+}
+
+
+/*
  * msg_create creates a new message structure for passing into a message queue.
  */
 struct smq_msg *
