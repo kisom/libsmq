@@ -178,7 +178,7 @@ smq_destroy(smq queue)
         retval = sem_destroy(queue->sem);
         free(queue->sem);
 	free(queue);
-	return 0;
+	return retval;
 }
 
 
