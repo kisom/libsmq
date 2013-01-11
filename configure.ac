@@ -1,6 +1,6 @@
 AC_PREREQ([2.59])
 AC_INIT([libsmq],
-        [2.2], 
+        [2.3], 
         [coder@kyleisom.net],
         [libsmq],
         [https://bitbucket.org/kisom/libsmq])
@@ -15,6 +15,17 @@ AC_PROG_INSTALL
 AC_PROG_RANLIB
 AM_PROG_CC_C_O
 
+DARWIN_UNSUPP="
+    ==============================================
+    Darwin is *not* supported as a target platform
+    (due to its lack of support for POSIX unnamed
+    semaphores.)
+    ==============================================
+"
+
+AS_IF([test "$host_os%[0-9]*" = "darwin"],
+      [AC_MSG_ERROR($DARWIN_UNSUPP)], [])
+
 NO_CUNIT_MSG="
     ==============================================
     Warning: CUnit was not found; will not be able
@@ -24,14 +35,5 @@ NO_CUNIT_MSG="
 AC_SEARCH_LIBS([CU_initialize_registry], [cunit],
                [], [AC_MSG_WARN($NO_CUNIT_MSG)])
 
-
-BAD_DOC_WARNING="
-    ==============================================
-    Warning: the documentation is currently very
-    much out of date. An update is in progress,
-    but DO NOT TRUST THE DOCS.
-    ==============================================
-"
-AC_MSG_WARN($BAD_DOC_WARNING)
 
 AC_OUTPUT
