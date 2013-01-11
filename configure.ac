@@ -1,6 +1,6 @@
 AC_PREREQ([2.59])
 AC_INIT([libsmq],
-        [2.1], 
+        [2.2], 
         [coder@kyleisom.net],
         [libsmq],
         [https://bitbucket.org/kisom/libsmq])
