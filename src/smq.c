@@ -69,7 +69,7 @@ smq_create()
 		queue->queue_len = 0;
                 queue->refs++;
                 queue->timeo.tv_sec = 0;
-                queue->timeo.tv_usec = 100 * 1000;
+                queue->timeo.tv_usec = 10 * 1000;
 		sem_error = sem_init(queue->sem, 0, 0);
                 if (0 == sem_error) {
                         sem_error = unlock_queue(queue);
@@ -213,18 +213,18 @@ smq_settimeout(smq queue, struct timeval *timeo)
 /*
  * duplicate a message queue for use in another thread.
  */
-smq
+int
 smq_dup(smq queue)
 {
         if (NULL == queue)
-                return NULL;
+                return -1;
         if (lock_queue(queue)) {
-                return NULL;
+                return -1;
         }
         queue->refs++;
         while (queue_locked(queue))
                 unlock_queue(queue);
-        return queue;
+        return 0;
 }
 
 

@@ -44,7 +44,7 @@ int              smq_send(smq, struct smq_msg *);
 struct smq_msg  *smq_receive(smq);
 size_t           smq_len(smq);
 void             smq_settimeout(smq, struct timeval *);
-smq              smq_dup(smq);
+int              smq_dup(smq);
 int              smq_destroy(smq);
 
 struct smq_msg  *smq_msg_create(void *, size_t);
