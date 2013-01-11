@@ -24,4 +24,14 @@ NO_CUNIT_MSG="
 AC_SEARCH_LIBS([CU_initialize_registry], [cunit],
                [], [AC_MSG_WARN($NO_CUNIT_MSG)])
 
+
+BAD_DOC_WARNING="
+    ==============================================
+    Warning: the documentation is currently very
+    much out of date. An update is in progress,
+    but DO NOT TRUST THE DOCS.
+    ==============================================
+"
+AC_MSG_WARN($BAD_DOC_WARNING)
+
 AC_OUTPUT
