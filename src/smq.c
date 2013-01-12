@@ -20,7 +20,6 @@
 #include <sys/queue.h>
 #include <sys/time.h>
 #include <semaphore.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "smq.h"
@@ -158,18 +157,14 @@ smq_destroy(smq queue)
         if (NULL == queue)
                 return 0;
 
-	if (0 != (retval = (lock_queue(queue)))) {
-                fprintf(stderr, "[-] could not unlock queue\n");
+	if (0 != (retval = (lock_queue(queue))))
 		return retval;
-	}
+
         queue->refs--;
 
-        if (queue->refs > 0) {
-                fprintf(stderr, "[-] refcount decremented, not destroying\n");
+        if (queue->refs > 0)
                 return unlock_queue(queue);
-        }
 
-        fprintf(stderr, "[-] destroying...\n");
 	while (NULL != (entry = TAILQ_FIRST(queue->queue))) {
 		free(entry->data);
 		TAILQ_REMOVE(queue->queue, entry, entries);
