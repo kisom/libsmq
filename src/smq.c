@@ -20,6 +20,7 @@
 #include <sys/queue.h>
 #include <sys/time.h>
 #include <semaphore.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "smq.h"
