@@ -169,6 +169,7 @@ smq_destroy(smq queue)
                 return unlock_queue(queue);
         }
 
+        fprintf(stderr, "[-] destroying...\n");
 	while (NULL != (entry = TAILQ_FIRST(queue->queue))) {
 		free(entry->data);
 		TAILQ_REMOVE(queue->queue, entry, entries);
