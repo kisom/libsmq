@@ -166,7 +166,7 @@ test_threaded_smq(void)
         CU_ASSERT(0 == smq_len(msgq));
         CU_ASSERT(0 == (status = smq_destroy(msgq)));
         if (0 != status)
-                fprintf(stderr, "[!] error destroying smq (%d)\n");
+                fprintf(stderr, "[!] error destroying smq (%d)\n", status);
 }
 
 
