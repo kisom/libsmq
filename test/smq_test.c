@@ -164,7 +164,9 @@ test_threaded_smq(void)
         free(thread_res);
 
         CU_ASSERT(0 == smq_len(msgq));
-        CU_ASSERT(0 == smq_destroy(msgq));
+        CU_ASSERT(0 == (status = smq_destroy(msgq)));
+        if (0 != status)
+                fprintf(stderr, "[!] error destroying smq (%d)\n");
 }
 
 
@@ -226,7 +228,6 @@ puller_run(void *args)
         if (smq_dup(msgq))
                 pthread_exit(NULL);
 
-        sleep(1);
         while (1) {
                 message = smq_receive(msgq);
                 if (NULL == message)
@@ -238,8 +239,10 @@ puller_run(void *args)
                 else
                         (*msg_count)++;
 
-                if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL))
+                if (0 != smq_msg_destroy(message, SMQ_DESTROY_ALL)) {
+                        smq_destroy(msgq);
                         pthread_exit(msg_count);
+                }
 
                 if (SMQ_TEST_RUNS == *msg_count)
                         break;
