@@ -154,8 +154,7 @@ test_threaded_smq(void)
 
         status = pthread_join(pusher_thd, &thread_res);
         CU_ASSERT(0 == status);
-        CU_ASSERT(NULL != thread_res);
-        CU_ASSERT(*(int *)thread_res == SMQ_TEST_RUNS);
+        CU_ASSERT(NULL != thread_res && *(int *)thread_res == SMQ_TEST_RUNS);
         free(thread_res);
 
         status = pthread_join(puller_thd, &thread_res);
