@@ -67,7 +67,7 @@ smq_create()
 	if (NULL != queue->queue) {
 		TAILQ_INIT(queue->queue);
 		queue->queue_len = 0;
-                queue->refs++;
+                queue->refs = 1;
                 queue->timeo.tv_sec = 0;
                 queue->timeo.tv_usec = 10 * 1000;
 		sem_error = sem_init(queue->sem, 0, 0);
@@ -158,11 +158,13 @@ smq_destroy(smq queue)
                 return 0;
 
 	if (0 != (retval = (lock_queue(queue)))) {
+                fprintf(stderr, "[-] could not unlock queue\n");
 		return retval;
 	}
         queue->refs--;
 
-        if (queue->refs) {
+        if (queue->refs > 0) {
+                fprintf(stderr, "[-] refcount decremented, not destroying\n");
                 return unlock_queue(queue);
         }
 
@@ -173,8 +175,7 @@ smq_destroy(smq queue)
 	}
 
 	free(queue->queue);
-	if (0 != (retval = (unlock_queue(queue))))
-		return retval;
+        while (unlock_queue(queue)) ;
         retval = sem_destroy(queue->sem);
         free(queue->sem);
 	free(queue);
